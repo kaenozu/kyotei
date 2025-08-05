@@ -90,6 +90,129 @@ class KeirinDataFetcher:
         cache.set(cache_key, sample_races, "race_info")
         return sample_races
 
+    def get_tomorrow_races(self) -> List[RaceInfo]:
+        """明日のレース一覧を取得"""
+        tomorrow = (datetime.now() + timedelta(days=1)).strftime("%Y%m%d")
+        cache_key = f"races_{tomorrow}"
+        
+        # キャッシュから取得を試行
+        cached_races = cache.get(cache_key)
+        if cached_races:
+            self.logger.info(f"キャッシュから明日のレース情報を取得: {len(cached_races)}件")
+            return cached_races
+        
+        races = []
+        
+        # 複数のソースからデータ取得を試行
+        for source_name, base_url in DATA_SOURCES.items():
+            if source_name == "api":
+                continue
+                
+            try:
+                races = self._fetch_races_from_source_by_date(source_name, base_url, tomorrow)
+                if races:
+                    self.logger.info(f"{source_name}から明日のレース情報を取得成功: {len(races)}件")
+                    cache.set(cache_key, races, "race_info")
+                    return races
+            except Exception as e:
+                self.logger.warning(f"{source_name}からの明日レース取得失敗: {e}")
+                continue
+        
+        # 全てのソースで失敗した場合はサンプルデータを返す
+        self.logger.info("全データソースで取得失敗、明日のサンプルデータを使用")
+        sample_races = self._get_sample_races_tomorrow()
+        cache.set(cache_key, sample_races, "race_info")
+        return sample_races
+
+    def get_races_by_venue(self, venue: str) -> List[RaceInfo]:
+        """指定開催場のレース一覧を取得"""
+        cache_key = f"venue_races_{venue}"
+        
+        # キャッシュから取得を試行
+        cached_races = cache.get(cache_key)
+        if cached_races:
+            self.logger.info(f"キャッシュから{venue}のレース情報を取得: {len(cached_races)}件")
+            return cached_races
+        
+        # 今日と明日のレースから指定開催場を抽出
+        today_races = self.get_today_races()
+        tomorrow_races = self.get_tomorrow_races()
+        
+        venue_races = []
+        for race in today_races + tomorrow_races:
+            if race.venue == venue:
+                venue_races.append(race)
+        
+        if venue_races:
+            cache.set(cache_key, venue_races, "race_info")
+        
+        return venue_races
+
+    def _get_sample_races_tomorrow(self) -> List[RaceInfo]:
+        """明日のサンプルレースデータを生成"""
+        races = []
+        tomorrow = datetime.now() + timedelta(days=1)
+        venues = ["函館", "青森", "いわき平", "弥彦"]
+        
+        for i, venue in enumerate(venues):
+            for race_num in range(1, 4):
+                hour = 10 + i
+                minute = 15 + (race_num - 1) * 30
+                if minute >= 60:
+                    hour += minute // 60
+                    minute = minute % 60
+                start_time = tomorrow.replace(hour=hour, minute=minute)
+                race_id = f"{tomorrow.strftime('%Y%m%d')}_{venue}_{race_num:02d}"
+                
+                race = RaceInfo(
+                    race_id=race_id,
+                    venue=venue,
+                    race_number=race_num,
+                    start_time=start_time,
+                    grade=RaceGrade.F1,
+                    prize_money=100
+                )
+                races.append(race)
+        
+        return races
+
+    def _fetch_races_from_source_by_date(self, source_name: str, base_url: str, date_str: str) -> List[RaceInfo]:
+        """日付指定でソースからレース情報を取得"""
+        # 実装は_fetch_races_from_sourceと同様だが、日付パラメータを追加
+        if source_name == "primary":
+            return self._fetch_from_keirin_jp_by_date(base_url, date_str)
+        elif source_name == "secondary":
+            return self._fetch_from_netkeirin_by_date(base_url, date_str)
+        elif source_name == "backup":
+            return self._fetch_from_oddspark_by_date(base_url, date_str)
+        return []
+
+    def _fetch_from_keirin_jp_by_date(self, base_url: str, date_str: str) -> List[RaceInfo]:
+        """指定日の競輪公式サイトからデータ取得"""
+        schedule_url = f"{base_url}/pc/raceschedule/{date_str}"
+        soup = self._fetch_with_retry(schedule_url)
+        
+        if not soup:
+            return []
+        
+        race_elements = soup.find_all('tr', class_='race-row') or soup.find_all('div', class_='race-item')
+        races = []
+        
+        for element in race_elements:
+            race_info = self._parse_race_schedule_item(element)
+            if race_info:
+                races.append(race_info)
+        
+        return races
+
+    def _fetch_from_netkeirin_by_date(self, base_url: str, date_str: str) -> List[RaceInfo]:
+        """指定日のnetkeirinからデータ取得"""
+        return []  # 現在は未実装
+
+    def _fetch_from_oddspark_by_date(self, base_url: str, date_str: str) -> List[RaceInfo]:
+        """指定日のオッズパークからデータ取得"""
+        return []  # 現在は未実装
+
     def _fetch_races_from_source(self, source_name: str, base_url: str) -> List[RaceInfo]:
         """指定されたソースからレース情報を取得"""
         if source_name == "primary":

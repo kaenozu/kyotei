@@ -45,8 +45,12 @@ class KeirinCLI:
                 elif choice == "3":
                     self._handle_venue_search()
                 elif choice == "4":
-                    self._handle_settings()
+                    self._handle_prediction_history()
                 elif choice == "5":
+                    self._handle_settings()
+                elif choice == "6":
+                    self._handle_help()
+                elif choice == "7":
                     self._show_goodbye()
                     break
                 else:
@@ -70,23 +74,43 @@ class KeirinCLI:
         self.console.print()
 
     def _show_main_menu(self) -> str:
-        """メインメニュー表示"""
-        menu_table = Table(show_header=False, box=None, expand=False)
-        menu_table.add_column(style="cyan", width=3)
-        menu_table.add_column(style="white")
+        """メインメニュー表示（強化版）"""
+        # 現在時刻とステータス表示
+        now = datetime.now()
+        status_panel = Panel(
+            f"🗓️  {now.strftime('%Y年%m月%d日 %H:%M')}  |  📊 キャッシュ稼働中  |  🔄 データ自動更新",
+            style="dim"
+        )
+        self.console.print(status_panel)
+        self.console.print()
         
-        menu_table.add_row("1.", "📅 本日のレース一覧")
-        menu_table.add_row("2.", "📈 明日のレース一覧")
-        menu_table.add_row("3.", "🔍 開催場検索")
-        menu_table.add_row("4.", "⚙️  設定")
-        menu_table.add_row("5.", "❌ 終了")
+        # 強化されたメニュー
+        menu_table = Table(show_header=False, box=None, expand=False, pad_edge=False)
+        menu_table.add_column(style="bold cyan", width=4)
+        menu_table.add_column(style="white", width=20)
+        menu_table.add_column(style="dim", width=30)
         
-        self.console.print(menu_table)
+        menu_table.add_row("1.", "📅 本日のレース一覧", "今日開催中のレースを表示")
+        menu_table.add_row("2.", "📈 明日のレース一覧", "明日開催予定のレースを表示")
+        menu_table.add_row("3.", "🔍 開催場検索", "特定の競輪場からレースを検索")
+        menu_table.add_row("4.", "📊 予想履歴", "過去の予想結果を確認")
+        menu_table.add_row("5.", "⚙️  設定・管理", "アプリケーション設定とキャッシュ管理")
+        menu_table.add_row("6.", "❓ ヘルプ", "使い方とコマンド一覧")
+        menu_table.add_row("7.", "❌ 終了", "アプリケーションを終了")
+        
+        menu_panel = Panel(
+            menu_table,
+            title="🚴 競輪予想システム - メインメニュー",
+            title_align="center",
+            border_style="blue"
+        )
+        
+        self.console.print(menu_panel)
         self.console.print()
         
         return Prompt.ask(
-            "[bold cyan]選択してください[/bold cyan]",
-            choices=["1", "2", "3", "4", "5"],
+            "[bold cyan]選択してください (1-7)[/bold cyan]",
+            choices=["1", "2", "3", "4", "5", "6", "7"],
             default="1"
         )
 
@@ -113,19 +137,284 @@ class KeirinCLI:
 
     def _handle_tomorrow_races(self):
         """明日のレース処理"""
-        self.console.print("[yellow]明日のレース機能は実装中です。[/yellow]")
-        Prompt.ask("[dim]Enterキーで戻る[/dim]", default="")
+        self.console.clear()
+        
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=self.console,
+        ) as progress:
+            task = progress.add_task("明日のレース情報を取得中...", total=None)
+            races = self.fetcher.get_tomorrow_races()
+            progress.remove_task(task)
+        
+        if not races:
+            self.console.print("[red]明日のレース情報の取得に失敗しました。[/red]")
+            Prompt.ask("[dim]Enterキーで戻る[/dim]", default="")
+            return
+        
+        self._show_race_list(races, "明日のレース一覧")
+        self._interactive_race_selection(races)
 
     def _handle_venue_search(self):
         """開催場検索処理"""
-        self.console.print("[yellow]開催場検索機能は実装中です。[/yellow]")
+        self.console.clear()
+        
+        # 開催場リストを表示
+        venues_table = Table(title="🏟️ 競輪場一覧")
+        venues_table.add_column("No.", style="cyan", width=4)
+        venues_table.add_column("競輪場", style="yellow", width=12)
+        venues_table.add_column("距離", style="green", width=8)
+        venues_table.add_column("バンク", style="magenta", width=8)
+        venues_table.add_column("特徴", style="blue", width=15)
+        
+        from config.settings import VENUES
+        venue_list = list(VENUES.items())[:10]  # 表示を10件に制限
+        
+        for i, (venue_name, info) in enumerate(venue_list, 1):
+            distance = f"{info.get('distance', 400)}m"
+            banking = f"{info.get('banking', 31.5)}°"
+            features = "標準バンク"  # 実際の特徴は設定ファイルから取得
+            
+            venues_table.add_row(
+                str(i),
+                venue_name,
+                distance,
+                banking,
+                features
+            )
+        
+        self.console.print(venues_table)
+        self.console.print()
+        
+        # 開催場選択
+        venue_choice = Prompt.ask(
+            "[bold cyan]検索したい競輪場番号を入力してください (0: 戻る)[/bold cyan]",
+            choices=[str(i) for i in range(len(venue_list) + 1)],
+            default="0"
+        )
+        
+        if venue_choice == "0":
+            return
+        
+        selected_venue = venue_list[int(venue_choice) - 1][0]
+        self._search_venue_races(selected_venue)
+
+    def _search_venue_races(self, venue: str):
+        """指定開催場のレース検索"""
+        self.console.clear()
+        
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=self.console,
+        ) as progress:
+            task = progress.add_task(f"{venue}のレース情報を検索中...", total=None)
+            races = self.fetcher.get_races_by_venue(venue)
+            progress.remove_task(task)
+        
+        if not races:
+            self.console.print(f"[red]{venue}のレース情報が見つかりませんでした。[/red]")
+            Prompt.ask("[dim]Enterキーで戻る[/dim]", default="")
+            return
+        
+        self._show_race_list(races, f"{venue}のレース一覧")
+        self._interactive_race_selection(races)
+
+    def _handle_prediction_history(self):
+        """予想履歴処理"""
+        self.console.clear()
+        
+        history_panel = Panel(
+            "📊 予想履歴機能は次回アップデートで実装予定です\n\n"
+            "実装予定機能:\n"
+            "• 過去の予想結果の保存・表示\n"
+            "• 的中率・回収率の統計\n"
+            "• 予想精度の分析\n"
+            "• お気に入り開催場の成績",
+            title="予想履歴",
+            border_style="yellow"
+        )
+        self.console.print(history_panel)
+        Prompt.ask("[dim]Enterキーで戻る[/dim]", default="")
+
+    def _handle_help(self):
+        """ヘルプ処理"""
+        self.console.clear()
+        
+        help_table = Table(title="📖 ヘルプ - 使い方ガイド")
+        help_table.add_column("機能", style="cyan", width=15)
+        help_table.add_column("説明", style="white", width=35)
+        help_table.add_column("操作方法", style="yellow", width=25)
+        
+        help_table.add_row(
+            "本日のレース",
+            "当日開催中のレース一覧を表示",
+            "メニューから「1」を選択"
+        )
+        help_table.add_row(
+            "明日のレース",
+            "翌日開催予定のレース一覧を表示",
+            "メニューから「2」を選択"
+        )
+        help_table.add_row(
+            "開催場検索",
+            "特定の競輪場のレースを検索",
+            "メニューから「3」を選択"
+        )
+        help_table.add_row(
+            "予想実行",
+            "選択したレースの予想を実行",
+            "レース一覧から番号を選択"
+        )
+        help_table.add_row(
+            "キャッシュ管理",
+            "データの確認・削除",
+            "設定メニューから操作"
+        )
+        
+        self.console.print(help_table)
+        self.console.print()
+        
+        # コマンドライン版のヘルプ
+        cmd_panel = Panel(
+            "💻 コマンドライン版の使い方:\n\n"
+            "• python main.py test          - サンプルデータでテスト\n"
+            "• python main.py predict [ID] - 特定レースの予想\n"
+            "• python main.py cache-info   - キャッシュ情報表示\n"
+            "• python main.py clear-cache  - キャッシュクリア\n"
+            "• python main.py --version    - バージョン表示",
+            title="コマンドライン版",
+            border_style="green"
+        )
+        self.console.print(cmd_panel)
+        
         Prompt.ask("[dim]Enterキーで戻る[/dim]", default="")
 
     def _handle_settings(self):
-        """設定処理"""
+        """設定処理（強化版）"""
         self.console.clear()
-        self._show_settings()
-        Prompt.ask("[dim]Enterキーで戻る[/dim]", default="")
+        
+        while True:
+            # 設定メニュー
+            settings_menu = Table(show_header=False, box=None, expand=False)
+            settings_menu.add_column(style="cyan", width=3)
+            settings_menu.add_column(style="white", width=25)
+            settings_menu.add_column(style="dim", width=30)
+            
+            settings_menu.add_row("1.", "📊 キャッシュ情報表示", "現在のキャッシュ状況を確認")
+            settings_menu.add_row("2.", "🗑️  キャッシュクリア", "全キャッシュデータを削除")
+            settings_menu.add_row("3.", "🧹 期限切れキャッシュ削除", "期限切れデータのみ削除")
+            settings_menu.add_row("4.", "⚙️  システム設定表示", "現在の設定値を表示")
+            settings_menu.add_row("5.", "🔄 データソース状態", "データ取得先の状態確認")
+            settings_menu.add_row("0.", "⬅️  メインメニューに戻る", "")
+            
+            settings_panel = Panel(
+                settings_menu,
+                title="⚙️  設定・管理メニュー",
+                border_style="yellow"
+            )
+            
+            self.console.print(settings_panel)
+            self.console.print()
+            
+            choice = Prompt.ask(
+                "[bold yellow]選択してください (0-5)[/bold yellow]",
+                choices=["0", "1", "2", "3", "4", "5"],
+                default="0"
+            )
+            
+            if choice == "0":
+                break
+            elif choice == "1":
+                self._show_cache_info()
+            elif choice == "2":
+                self._clear_all_cache()
+            elif choice == "3":
+                self._clear_expired_cache()
+            elif choice == "4":
+                self._show_system_settings()
+            elif choice == "5":
+                self._show_data_source_status()
+
+    def _show_cache_info(self):
+        """キャッシュ情報の詳細表示"""
+        from utils.cache import cache
+        info = cache.get_cache_info()
+        
+        cache_panel = Panel(
+            f"📊 総エントリ数: {info.get('total_entries', 0)}\n"
+            f"✅ 有効エントリ数: {info.get('valid_entries', 0)}\n"
+            f"⏰ 期限切れエントリ数: {info.get('expired_entries', 0)}\n\n"
+            f"💾 キャッシュファイル: cache/cache.db",
+            title="キャッシュ情報",
+            border_style="green"
+        )
+        self.console.print(cache_panel)
+        Prompt.ask("[dim]Enterキーで続行[/dim]", default="")
+
+    def _clear_all_cache(self):
+        """全キャッシュクリア"""
+        if Confirm.ask("🗑️  全キャッシュを削除しますか？"):
+            from utils.cache import cache
+            cache.clear_all()
+            self.console.print("[green]✅ 全キャッシュを削除しました。[/green]")
+        else:
+            self.console.print("[yellow]キャンセルしました。[/yellow]")
+        Prompt.ask("[dim]Enterキーで続行[/dim]", default="")
+
+    def _clear_expired_cache(self):
+        """期限切れキャッシュクリア"""
+        from utils.cache import cache
+        cache.clear_expired()
+        self.console.print("[green]✅ 期限切れキャッシュを削除しました。[/green]")
+        Prompt.ask("[dim]Enterキーで続行[/dim]", default="")
+
+    def _show_system_settings(self):
+        """システム設定表示"""
+        from config.settings import PREDICTION_WEIGHTS, SCRAPING_CONFIG, CACHE_DURATION
+        
+        # 予想アルゴリズム設定
+        weights_table = Table(title="🎯 予想アルゴリズム重み設定")
+        weights_table.add_column("評価項目", style="cyan")
+        weights_table.add_column("重み", style="yellow")
+        weights_table.add_column("説明", style="white")
+        
+        weights_table.add_row("選手能力", f"{PREDICTION_WEIGHTS['rider_ability']:.1%}", "級班・勝率・年齢")
+        weights_table.add_row("近況フォーム", f"{PREDICTION_WEIGHTS['recent_form']:.1%}", "直近成績・トレンド")
+        weights_table.add_row("バンク相性", f"{PREDICTION_WEIGHTS['track_compatibility']:.1%}", "開催場での成績")
+        weights_table.add_row("ライン戦略", f"{PREDICTION_WEIGHTS['line_strategy']:.1%}", "ライン形成・役割")
+        weights_table.add_row("外部要因", f"{PREDICTION_WEIGHTS['external_factors']:.1%}", "天候・オッズ・風")
+        
+        self.console.print(weights_table)
+        self.console.print()
+        
+        # スクレイピング設定
+        scraping_panel = Panel(
+            f"⏱️  レート制限: {SCRAPING_CONFIG['rate_limit']}秒間隔\n"
+            f"⏰ タイムアウト: {SCRAPING_CONFIG['timeout']}秒\n"
+            f"🔄 最大リトライ: {SCRAPING_CONFIG['max_retries']}回",
+            title="🌐 データ取得設定",
+            border_style="blue"
+        )
+        self.console.print(scraping_panel)
+        Prompt.ask("[dim]Enterキーで続行[/dim]", default="")
+
+    def _show_data_source_status(self):
+        """データソース状態表示"""
+        from config.settings import DATA_SOURCES
+        
+        source_table = Table(title="🌐 データソース状態")
+        source_table.add_column("ソース", style="cyan")
+        source_table.add_column("URL", style="yellow")
+        source_table.add_column("状態", style="green")
+        
+        for name, url in DATA_SOURCES.items():
+            status = "🟢 設定済み" if url else "🔴 未設定"
+            source_table.add_row(name, url, status)
+        
+        self.console.print(source_table)
+        Prompt.ask("[dim]Enterキーで続行[/dim]", default="")
 
     def _show_race_list(self, races: List[RaceInfo], title: str):
         """レース一覧をテーブル表示"""
