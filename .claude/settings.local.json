@@ -11,7 +11,8 @@
       "Bash(pip install:*)",
       "Bash(git checkout:*)",
       "WebFetch(domain:keirin.jp)",
-      "WebFetch(domain:keirin.netkeiba.com)"
+      "WebFetch(domain:keirin.netkeiba.com)",
+      "Bash(git pull:*)"
     ],
     "deny": []
   }
