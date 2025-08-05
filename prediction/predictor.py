@@ -85,51 +85,162 @@ class KeirinPredictor:
         )
 
     def _evaluate_rider_ability(self, rider: RiderInfo) -> float:
-        """選手の基本能力を評価"""
+        """選手の基本能力を評価（改善版）"""
         ability_score = 0.0
         
-        # 級班による基礎点
-        ability_score += self.class_points.get(rider.class_rank.value, 50)
+        # 級班による基礎点（強化）
+        class_score = self.class_points.get(rider.class_rank.value, 50)
+        ability_score += class_score
         
-        # 勝率による補正
+        # 勝率による補正（より詳細な分析）
         if rider.stats:
-            win_rate_bonus = rider.stats.win_rate * 100
-            place_rate_bonus = rider.stats.place_rate * 50
-            ability_score += win_rate_bonus + place_rate_bonus
+            # 勝率の非線形評価（上位選手はより高評価）
+            win_rate_factor = 1 + (rider.stats.win_rate * 2) ** 1.5
+            place_rate_factor = 1 + (rider.stats.place_rate * 1.5) ** 1.2
+            show_rate_factor = 1 + (rider.stats.show_rate * 1.2) ** 1.1
+            
+            ability_score *= (win_rate_factor + place_rate_factor + show_rate_factor) / 3
+            
+            # 総レース数による信頼度調整
+            experience_factor = min(1.2, 1 + (rider.stats.total_races / 500))
+            ability_score *= experience_factor
         
-        # 年齢による補正（ピーク年齢28-35歳）
-        age_factor = 1.0
-        if 28 <= rider.age <= 35:
-            age_factor = 1.1
-        elif rider.age > 40:
-            age_factor = 0.9
-        elif rider.age < 25:
-            age_factor = 0.95
+        # 年齢による補正（より詳細なピーク分析）
+        age_factor = self._calculate_age_performance_factor(rider.age)
+        ability_score *= age_factor
         
-        return ability_score * age_factor
+        # 級班と成績の整合性チェック
+        consistency_factor = self._evaluate_class_consistency(rider)
+        ability_score *= consistency_factor
+        
+        return ability_score
+
+    def _calculate_age_performance_factor(self, age: int) -> float:
+        """年齢による能力係数を詳細計算"""
+        if age < 20:
+            return 0.8  # 経験不足
+        elif 20 <= age < 25:
+            return 0.9 + (age - 20) * 0.04  # 0.9-1.1の線形上昇
+        elif 25 <= age <= 32:
+            return 1.1  # ピーク期間
+        elif 33 <= age <= 37:
+            return 1.1 - (age - 32) * 0.02  # 1.1-1.0の緩やかな下降
+        elif 38 <= age <= 42:
+            return 1.0 - (age - 37) * 0.03  # 1.0-0.85の下降
+        else:
+            return max(0.7, 0.85 - (age - 42) * 0.02)  # 更なる下降、最低0.7
+
+    def _evaluate_class_consistency(self, rider: RiderInfo) -> float:
+        """級班と成績の整合性を評価"""
+        if not rider.stats:
+            return 1.0
+        
+        # 級班に期待される勝率
+        expected_win_rates = {
+            "S1": 0.25, "S2": 0.20, "A1": 0.15, "A2": 0.12, "A3": 0.08
+        }
+        
+        expected_rate = expected_win_rates.get(rider.class_rank.value, 0.10)
+        actual_rate = rider.stats.win_rate
+        
+        # 実際の勝率が期待より高い場合は上昇期、低い場合は下降期
+        if actual_rate > expected_rate:
+            return min(1.3, 1 + (actual_rate - expected_rate) * 2)
+        else:
+            return max(0.8, 1 - (expected_rate - actual_rate) * 1.5)
 
     def _evaluate_recent_form(self, rider: RiderInfo) -> float:
-        """直近の調子を評価"""
+        """直近の調子を評価（改善版）"""
         if not rider.stats or not rider.stats.recent_results:
             return 50.0  # デフォルト値
         
-        recent_results = rider.stats.recent_results[-5:]  # 直近5走
+        # 直近10走まで拡張
+        recent_results = rider.stats.recent_results[-10:]
+        if not recent_results:
+            return 50.0
+        
+        # より詳細な重み付け（指数減衰）
         form_score = 0.0
-        weight_decay = [1.0, 0.8, 0.6, 0.4, 0.2]  # 新しい結果ほど重視
+        total_weight = 0.0
+        trend_score = 0.0
         
         for i, result in enumerate(recent_results):
-            weight = weight_decay[i] if i < len(weight_decay) else 0.1
+            # 指数減衰重み（最新の結果により大きな重み）
+            weight = 0.9 ** i
+            total_weight += weight
             
-            if result.finish_position == 1:
-                form_score += 20 * weight
-            elif result.finish_position <= 3:
-                form_score += 10 * weight
-            elif result.finish_position <= 6:
-                form_score += 5 * weight
-            else:
-                form_score += 1 * weight
+            # 順位による得点計算
+            position_score = self._calculate_position_score(result.finish_position)
+            form_score += position_score * weight
+            
+            # トレンド分析（直近3走の傾向）
+            if i < 3:
+                trend_score += position_score * (3 - i)  # 最新ほど重視
+        
+        # 平均化
+        if total_weight > 0:
+            form_score = form_score / total_weight
+        
+        # トレンド補正
+        trend_factor = self._calculate_trend_factor(recent_results[:3])
+        form_score *= trend_factor
+        
+        # 安定性評価
+        stability_factor = self._calculate_stability_factor(recent_results)
+        form_score *= stability_factor
         
         return form_score
+
+    def _calculate_position_score(self, position: int) -> float:
+        """順位による得点計算"""
+        if position == 1:
+            return 100
+        elif position == 2:
+            return 80
+        elif position == 3:
+            return 65
+        elif position <= 5:
+            return 40
+        elif position <= 7:
+            return 20
+        else:
+            return 5
+
+    def _calculate_trend_factor(self, recent_results: list) -> float:
+        """直近のトレンドを分析"""
+        if len(recent_results) < 2:
+            return 1.0
+        
+        # 順位の推移を分析
+        positions = [result.finish_position for result in recent_results]
+        trend = 0
+        
+        for i in range(1, len(positions)):
+            if positions[i-1] > positions[i]:  # 順位向上
+                trend += 1
+            elif positions[i-1] < positions[i]:  # 順位悪化
+                trend -= 1
+        
+        # トレンド係数
+        if trend > 0:  # 上昇トレンド
+            return 1.0 + (trend * 0.1)
+        elif trend < 0:  # 下降トレンド
+            return max(0.8, 1.0 + (trend * 0.1))
+        else:  # 安定
+            return 1.0
+
+    def _calculate_stability_factor(self, results: list) -> float:
+        """成績の安定性を評価"""
+        if len(results) < 3:
+            return 1.0
+        
+        positions = [result.finish_position for result in results]
+        avg_position = sum(positions) / len(positions)
+        variance = sum((pos - avg_position) ** 2 for pos in positions) / len(positions)
+        
+        # 分散が小さいほど安定している
+        stability = 1.0 + (5.0 - variance) * 0.02
+        return max(0.9, min(1.1, stability))
 
     def _evaluate_track_compatibility(self, rider: RiderInfo, venue: str) -> float:
         """バンクとの相性を評価"""
@@ -250,24 +361,61 @@ class KeirinPredictor:
         return min(1.0, confidence)
 
     def _calculate_confidence(self, scores: Dict[int, PredictionScore]) -> float:
-        """予想全体の信頼度を計算"""
+        """予想全体の信頼度を計算（改善版）"""
         if not scores:
             return 0.0
         
-        # 上位3名のスコア差を見る
         sorted_scores = sorted(scores.values(), key=lambda x: x.total_score, reverse=True)
         
         if len(sorted_scores) < 3:
-            return 0.5
+            return 0.4
         
-        # 1位と2位の差
+        # 複数の要素から信頼度を計算
+        confidence_factors = []
+        
+        # 1. スコア分離度（上位選手と他の差）
+        top_score = sorted_scores[0].total_score
+        avg_score = sum(score.total_score for score in sorted_scores) / len(sorted_scores)
+        separation_factor = min(1.0, (top_score - avg_score) / 30.0)
+        confidence_factors.append(separation_factor)
+        
+        # 2. 上位陣の安定性（1-3位のスコア差）
         score_diff_1_2 = sorted_scores[0].total_score - sorted_scores[1].total_score
-        # 2位と3位の差
         score_diff_2_3 = sorted_scores[1].total_score - sorted_scores[2].total_score
+        stability_factor = min(1.0, (score_diff_1_2 + score_diff_2_3) / 40.0)
+        confidence_factors.append(stability_factor)
         
-        # スコア差が大きいほど信頼度が高い
-        confidence = min(1.0, (score_diff_1_2 + score_diff_2_3) / 50)
-        return max(0.3, confidence)
+        # 3. 個別選手の信頼度平均
+        individual_confidence = sum(score.confidence for score in sorted_scores[:3]) / 3
+        confidence_factors.append(individual_confidence)
+        
+        # 4. データ充実度
+        data_completeness = self._calculate_data_completeness(scores)
+        confidence_factors.append(data_completeness)
+        
+        # 重み付き平均で最終信頼度を計算
+        weights = [0.3, 0.25, 0.25, 0.2]  # 各要素の重み
+        final_confidence = sum(factor * weight for factor, weight in zip(confidence_factors, weights))
+        
+        return max(0.4, min(0.95, final_confidence))
+
+    def _calculate_data_completeness(self, scores: Dict[int, PredictionScore]) -> float:
+        """データの充実度を評価"""
+        completeness_score = 0.0
+        total_riders = len(scores)
+        
+        for score in scores.values():
+            # 各評価項目が適切に計算されているかチェック
+            if score.ability_score > 0:
+                completeness_score += 0.25
+            if score.form_score > 0:
+                completeness_score += 0.25
+            if score.track_score > 0:
+                completeness_score += 0.25
+            if score.line_score > 0:
+                completeness_score += 0.25
+        
+        return completeness_score / total_riders if total_riders > 0 else 0.0
 
     def _generate_betting_recommendations(
         self, rankings: List[int], scores: Dict[int, PredictionScore], race_data: RaceDetail

@@ -208,7 +208,9 @@ class CacheEntry:
 
 
 def create_sample_race() -> RaceDetail:
-    """サンプルレースデータを作成（テスト用）"""
+    """サンプルレースデータを作成（テスト用・改善版）"""
+    import random
+    
     race_info = RaceInfo(
         race_id="20241205_15_01",
         venue="平塚",
@@ -219,20 +221,36 @@ def create_sample_race() -> RaceDetail:
     )
 
     riders = []
-    for i in range(1, 8):
+    rider_profiles = _generate_realistic_rider_profiles()
+    
+    for i, profile in enumerate(rider_profiles, 1):
+        # より現実的な成績データを生成
+        recent_results = _generate_recent_results(profile['win_rate'])
+        
         rider = RiderInfo(
             rider_id=f"rider_{i:03d}",
             number=i,
-            name=f"選手{i}",
-            age=25 + i,
-            class_rank=RiderClass.A1,
-            racing_style=RacingStyle.SPRINTER,
-            home_venue="平塚",
+            name=profile['name'],
+            age=profile['age'],
+            class_rank=profile['class_rank'],
+            racing_style=profile['racing_style'],
+            home_venue=profile['home_venue'],
             stats=RiderStats(
                 rider_id=f"rider_{i:03d}",
-                win_rate=0.15 + i * 0.02,
-                place_rate=0.35 + i * 0.03,
-                show_rate=0.55 + i * 0.04
+                win_rate=profile['win_rate'],
+                place_rate=profile['place_rate'],
+                show_rate=profile['show_rate'],
+                total_races=profile['total_races'],
+                wins=int(profile['total_races'] * profile['win_rate']),
+                places=int(profile['total_races'] * profile['place_rate']),
+                shows=int(profile['total_races'] * profile['show_rate']),
+                recent_results=recent_results,
+                venue_stats={
+                    "平塚": {
+                        "win_rate": profile['win_rate'] * random.uniform(0.8, 1.3),
+                        "place_rate": profile['place_rate'] * random.uniform(0.9, 1.2)
+                    }
+                }
             )
         )
         riders.append(rider)
@@ -241,3 +259,101 @@ def create_sample_race() -> RaceDetail:
         race_info=race_info,
         riders=riders
     )
+
+def _generate_realistic_rider_profiles():
+    """現実的な選手プロフィールを生成"""
+    import random
+    
+    names = ["田中太郎", "佐藤次郎", "鈴木三郎", "高橋四郎", "山田五郎", "中村六郎", "小林七郎"]
+    venues = ["平塚", "川崎", "小田原", "静岡", "名古屋", "京都", "大阪"]
+    styles = [RacingStyle.SPRINTER, RacingStyle.LEADER, RacingStyle.TRACKER, RacingStyle.SWEEPER]
+    classes = [RiderClass.S1, RiderClass.S2, RiderClass.A1, RiderClass.A2, RiderClass.A3]
+    
+    profiles = []
+    for i in range(7):
+        # 級班に応じた勝率設定
+        class_rank = random.choice(classes)
+        base_win_rate = {
+            RiderClass.S1: 0.25,
+            RiderClass.S2: 0.20,
+            RiderClass.A1: 0.15,
+            RiderClass.A2: 0.12,
+            RiderClass.A3: 0.08
+        }[class_rank]
+        
+        # 個人差を追加
+        win_rate = base_win_rate * random.uniform(0.7, 1.4)
+        place_rate = win_rate + random.uniform(0.15, 0.25)
+        show_rate = place_rate + random.uniform(0.20, 0.35)
+        
+        # 年齢に応じた調整
+        age = random.randint(22, 45)
+        if 25 <= age <= 32:  # ピーク年齢
+            performance_factor = random.uniform(1.0, 1.2)
+        elif age < 25 or age > 38:
+            performance_factor = random.uniform(0.8, 1.0)
+        else:
+            performance_factor = random.uniform(0.9, 1.1)
+        
+        win_rate *= performance_factor
+        place_rate *= performance_factor
+        show_rate = min(0.8, show_rate * performance_factor)
+        
+        profiles.append({
+            'name': names[i],
+            'age': age,
+            'class_rank': class_rank,
+            'racing_style': random.choice(styles),
+            'home_venue': random.choice(venues),
+            'win_rate': round(win_rate, 3),
+            'place_rate': round(place_rate, 3),
+            'show_rate': round(show_rate, 3),
+            'total_races': random.randint(80, 300)
+        })
+    
+    return profiles
+
+def _generate_recent_results(base_win_rate: float) -> List[RaceResult]:
+    """選手の直近成績を現実的に生成"""
+    import random
+    from datetime import datetime, timedelta
+    
+    results = []
+    current_form = random.uniform(0.7, 1.3)  # 現在の調子
+    
+    for i in range(10):  # 直近10走
+        # トレンドを考慮した順位決定
+        adjusted_win_rate = base_win_rate * current_form
+        
+        # 順位を確率的に決定
+        rand = random.random()
+        if rand < adjusted_win_rate:
+            position = 1
+        elif rand < adjusted_win_rate + 0.15:
+            position = 2
+        elif rand < adjusted_win_rate + 0.25:
+            position = 3
+        elif rand < 0.7:
+            position = random.randint(4, 6)
+        else:
+            position = random.randint(7, 9)
+        
+        # 日付を生成（過去10戦分）
+        race_date = datetime.now() - timedelta(days=random.randint(7, 70))
+        
+        result = RaceResult(
+            race_id=f"past_race_{i}",
+            finish_position=position,
+            race_date=race_date,
+            venue=random.choice(["平塚", "川崎", "小田原"]),
+            grade="F1"
+        )
+        results.append(result)
+        
+        # 調子の微調整（連続性を持たせる）
+        current_form *= random.uniform(0.95, 1.05)
+        current_form = max(0.5, min(1.5, current_form))
+    
+    # 新しい順（最新が最初）にソート
+    results.sort(key=lambda x: x.race_date, reverse=True)
+    return results
