@@ -14,6 +14,7 @@ from .models import (
     RaceGrade, RiderClass, RacingStyle, OddsInfo, LineInfo
 )
 from config.settings import SCRAPING_CONFIG, DATA_SOURCES
+from utils.cache import cache
 
 
 class KeirinDataFetcher:
@@ -56,29 +57,105 @@ class KeirinDataFetcher:
 
     def get_today_races(self) -> List[RaceInfo]:
         """本日のレース一覧を取得"""
-        races = []
         today = datetime.now().strftime("%Y%m%d")
+        cache_key = f"races_{today}"
         
-        # Kドリームスのスケジュールページから取得
-        schedule_url = f"{DATA_SOURCES['primary']}/schedule/{today}"
+        # キャッシュから取得を試行
+        cached_races = cache.get(cache_key)
+        if cached_races:
+            self.logger.info(f"キャッシュからレース情報を取得: {len(cached_races)}件")
+            return cached_races
+        
+        races = []
+        
+        # まず複数のソースからデータ取得を試行
+        for source_name, base_url in DATA_SOURCES.items():
+            if source_name == "api":
+                continue  # APIは別途処理
+                
+            try:
+                races = self._fetch_races_from_source(source_name, base_url)
+                if races:
+                    self.logger.info(f"{source_name}からレース情報を取得成功: {len(races)}件")
+                    # 成功したらキャッシュに保存
+                    cache.set(cache_key, races, "race_info")
+                    return races
+            except Exception as e:
+                self.logger.warning(f"{source_name}からの取得失敗: {e}")
+                continue
+        
+        # 全てのソースで失敗した場合はサンプルデータを返す
+        self.logger.info("全データソースで取得失敗、サンプルデータを使用")
+        sample_races = self._get_sample_races()
+        cache.set(cache_key, sample_races, "race_info")
+        return sample_races
+
+    def _fetch_races_from_source(self, source_name: str, base_url: str) -> List[RaceInfo]:
+        """指定されたソースからレース情報を取得"""
+        if source_name == "primary":
+            return self._fetch_from_keirin_jp(base_url)
+        elif source_name == "secondary":
+            return self._fetch_from_netkeirin(base_url)
+        elif source_name == "backup":
+            return self._fetch_from_oddspark(base_url)
+        return []
+
+    def _fetch_from_keirin_jp(self, base_url: str) -> List[RaceInfo]:
+        """競輪公式サイトからデータ取得"""
+        schedule_url = f"{base_url}/pc/raceschedule"
         soup = self._fetch_with_retry(schedule_url)
         
         if not soup:
-            self.logger.warning("レーススケジュールの取得に失敗")
-            return self._get_sample_races()  # サンプルデータを返す
+            return []
+        
+        race_elements = soup.find_all('tr', class_='race-row') or soup.find_all('div', class_='race-item')
+        races = []
+        
+        for element in race_elements:
+            race_info = self._parse_race_schedule_item(element)
+            if race_info:
+                races.append(race_info)
+        
+        return races
+
+    def _fetch_from_netkeirin(self, base_url: str) -> List[RaceInfo]:
+        """netkeirinからデータ取得"""
+        # AJAXエンドポイントを使用してデータ取得を試行
+        ajax_url = f"{base_url}/race/ajax_race_voting.html"
         
         try:
-            race_elements = soup.find_all('div', class_='race-schedule-item')
-            
-            for element in race_elements:
-                race_info = self._parse_race_schedule_item(element)
-                if race_info:
-                    races.append(race_info)
-                    
+            response = self.session.get(ajax_url, timeout=self.timeout)
+            if response.status_code == 200:
+                # JSONデータの場合
+                try:
+                    data = response.json()
+                    return self._parse_netkeirin_json(data)
+                except:
+                    # HTMLデータの場合
+                    soup = BeautifulSoup(response.content, 'html.parser')
+                    return self._parse_netkeirin_html(soup)
         except Exception as e:
-            self.logger.error(f"レーススケジュール解析エラー: {e}")
-            return self._get_sample_races()
+            self.logger.debug(f"netkeirin AJAX取得エラー: {e}")
         
+        return []
+
+    def _fetch_from_oddspark(self, base_url: str) -> List[RaceInfo]:
+        """オッズパークからデータ取得"""
+        # オッズパークのAPIエンドポイントを試行
+        return []  # 現在は未実装
+
+    def _parse_netkeirin_json(self, data: dict) -> List[RaceInfo]:
+        """netkeirinのJSONデータを解析"""
+        races = []
+        # JSONデータの構造に応じて解析
+        # 実装は実際のデータ形式に依存
+        return races
+
+    def _parse_netkeirin_html(self, soup: BeautifulSoup) -> List[RaceInfo]:
+        """netkeirinのHTMLデータを解析"""
+        races = []
+        # HTMLデータの構造に応じて解析
+        # 実装は実際のHTML構造に依存
         return races
 
     def _parse_race_schedule_item(self, element) -> Optional[RaceInfo]:
@@ -122,26 +199,42 @@ class KeirinDataFetcher:
 
     def get_race_details(self, race_id: str) -> Optional[RaceDetail]:
         """特定レースの詳細情報を取得"""
+        cache_key = f"race_detail_{race_id}"
+        
+        # キャッシュから取得を試行
+        cached_detail = cache.get(cache_key)
+        if cached_detail:
+            self.logger.info(f"キャッシュからレース詳細を取得: {race_id}")
+            return cached_detail
+        
         # race_idから情報を分解
         parts = race_id.split('_')
         if len(parts) < 3:
             self.logger.warning(f"無効なrace_id形式: {race_id}")
-            return self._get_sample_race_detail(race_id)
+            sample_detail = self._get_sample_race_detail(race_id)
+            cache.set(cache_key, sample_detail, "race_info")
+            return sample_detail
         
         date_str, venue, race_number = parts[0], parts[1], int(parts[2])
         
-        # レース詳細ページのURL構築
-        detail_url = f"{DATA_SOURCES['primary']}/race-detail/{date_str}/{venue}/{race_number:02d}"
+        # レース詳細ページのURL構築（競輪公式サイト形式）
+        detail_url = f"{DATA_SOURCES['primary']}/pc/race"
         soup = self._fetch_with_retry(detail_url)
         
         if not soup:
-            return self._get_sample_race_detail(race_id)
+            sample_detail = self._get_sample_race_detail(race_id)
+            cache.set(cache_key, sample_detail, "race_info")
+            return sample_detail
         
         try:
-            return self._parse_race_detail(soup, race_id)
+            race_detail = self._parse_race_detail(soup, race_id)
+            cache.set(cache_key, race_detail, "race_info")
+            return race_detail
         except Exception as e:
             self.logger.error(f"レース詳細解析エラー: {e}")
-            return self._get_sample_race_detail(race_id)
+            sample_detail = self._get_sample_race_detail(race_id)
+            cache.set(cache_key, sample_detail, "race_info")
+            return sample_detail
 
     def _parse_race_detail(self, soup: BeautifulSoup, race_id: str) -> RaceDetail:
         """レース詳細ページを解析"""
