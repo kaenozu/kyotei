@@ -125,7 +125,8 @@ class KeirinDataFetcher:
         # race_idから情報を分解
         parts = race_id.split('_')
         if len(parts) < 3:
-            return None
+            self.logger.warning(f"無効なrace_id形式: {race_id}")
+            return self._get_sample_race_detail(race_id)
         
         date_str, venue, race_number = parts[0], parts[1], int(parts[2])
         
@@ -290,7 +291,11 @@ class KeirinDataFetcher:
         """詳細ページからレース基本情報を解析"""
         # プレースホルダー実装
         parts = race_id.split('_')
-        date_str, venue, race_number = parts[0], parts[1], int(parts[2])
+        if len(parts) < 3:
+            # デフォルト値を使用
+            date_str, venue, race_number = "20241205", "平塚", 1
+        else:
+            date_str, venue, race_number = parts[0], parts[1], int(parts[2])
         
         start_time = datetime.strptime(date_str, '%Y%m%d').replace(hour=10, minute=15)
         

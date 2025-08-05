@@ -104,10 +104,18 @@ def predict(race_id):
         
         # 結果表示
         click.echo(f"\n=== {race_detail.race_info.venue} {race_detail.race_info.race_number}R 予想結果 ===")
+        
+        if not prediction.rankings:
+            click.echo("予想結果が生成されませんでした。", err=True)
+            return
+            
         for i, rider_num in enumerate(prediction.rankings[:3], 1):
             rider = race_detail.get_rider_by_number(rider_num)
-            score = prediction.scores[rider_num]
-            click.echo(f"{i}位: {rider_num}番 {rider.name} (スコア: {score.total_score:.1f})")
+            if rider:
+                score = prediction.scores[rider_num]
+                click.echo(f"{i}位: {rider_num}番 {rider.name} (スコア: {score.total_score:.1f})")
+            else:
+                click.echo(f"{i}位: {rider_num}番 (選手情報なし)")
         
         click.echo(f"\n信頼度: {prediction.confidence:.1%}")
         

@@ -3,3 +3,14 @@
 2025-08-05 12:19:32,117 - __main__ - INFO - Keirin Predictor CLI v1.0.0 起動
 2025-08-05 12:19:38,102 - data.fetcher - INFO - データ取得成功: https://keirin.kdreams.jp/schedule/20250805
 2025-08-05 12:19:56,955 - __main__ - INFO - アプリケーション終了
+2025-08-05 12:56:54,225 - prediction.predictor - INFO - 予想開始: 20241205_15_01
+2025-08-05 12:56:54,226 - prediction.predictor - INFO - 予想完了: 1位予想 7番
+2025-08-05 12:57:19,520 - data.fetcher - INFO - データ取得成功: https://keirin.kdreams.jp/race-detail/20241205/平塚/01
+2025-08-05 12:57:19,526 - prediction.predictor - INFO - 予想開始: 20241205_平塚_01
+2025-08-05 12:57:19,527 - __main__ - ERROR - 予想実行エラー: list index out of range
+2025-08-05 12:57:50,789 - data.fetcher - INFO - データ取得成功: https://keirin.kdreams.jp/race-detail/20241205/平塚/01
+2025-08-05 12:57:50,794 - prediction.predictor - INFO - 予想開始: 20241205_平塚_01
+2025-08-05 12:57:50,794 - __main__ - ERROR - 予想実行エラー: list index out of range
+2025-08-05 12:58:11,873 - data.fetcher - INFO - データ取得成功: https://keirin.kdreams.jp/race-detail/20241205/平塚/01
+2025-08-05 12:58:11,878 - prediction.predictor - INFO - 予想開始: 20241205_平塚_01
+2025-08-05 12:58:11,878 - __main__ - ERROR - 予想実行エラー: list index out of range
