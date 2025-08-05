@@ -2,7 +2,7 @@
 競輪予想CLI インターフェース
 """
 import logging
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from datetime import datetime
 
 from rich.console import Console
@@ -17,7 +17,8 @@ from rich.live import Live
 from data.models import RaceInfo, RaceDetail, PredictionResult, BetRecommendation
 from data.fetcher import KeirinDataFetcher
 from prediction.predictor import KeirinPredictor
-from config.settings import APP_NAME, APP_VERSION, DISPLAY_CONFIG
+from config.settings import APP_NAME, APP_VERSION, DISPLAY_CONFIG, LOG_CONFIG, SCRAPING_CONFIG, CACHE_DURATION, PREDICTION_WEIGHTS, PERFORMANCE_CONFIG, save_settings
+from config.config_manager import config_manager
 
 
 class KeirinCLI:
@@ -307,6 +308,7 @@ class KeirinCLI:
             settings_menu.add_row("3.", "🧹 期限切れキャッシュ削除", "期限切れデータのみ削除")
             settings_menu.add_row("4.", "⚙️  システム設定表示", "現在の設定値を表示")
             settings_menu.add_row("5.", "🔄 データソース状態", "データ取得先の状態確認")
+            settings_menu.add_row("6.", "✏️  設定変更", "アプリケーション設定を編集")
             settings_menu.add_row("0.", "⬅️  メインメニューに戻る", "")
             
             settings_panel = Panel(
@@ -319,8 +321,8 @@ class KeirinCLI:
             self.console.print()
             
             choice = Prompt.ask(
-                "[bold yellow]選択してください (0-5)[/bold yellow]",
-                choices=["0", "1", "2", "3", "4", "5"],
+                "[bold yellow]選択してください (0-6)[/bold yellow]",
+                choices=["0", "1", "2", "3", "4", "5", "6"],
                 default="0"
             )
             
@@ -336,6 +338,8 @@ class KeirinCLI:
                 self._show_system_settings()
             elif choice == "5":
                 self._show_data_source_status()
+            elif choice == "6":
+                self._handle_edit_settings()
 
     def _show_cache_info(self):
         """キャッシュ情報の詳細表示"""
@@ -372,7 +376,7 @@ class KeirinCLI:
 
     def _show_system_settings(self):
         """システム設定表示"""
-        from config.settings import PREDICTION_WEIGHTS, SCRAPING_CONFIG, CACHE_DURATION
+        from config.settings import PREDICTION_WEIGHTS, SCRAPING_CONFIG, CACHE_DURATION, LOG_CONFIG, DISPLAY_CONFIG, PERFORMANCE_CONFIG
         
         # 予想アルゴリズム設定
         weights_table = Table(title="🎯 予想アルゴリズム重み設定")
@@ -398,6 +402,57 @@ class KeirinCLI:
             border_style="blue"
         )
         self.console.print(scraping_panel)
+        self.console.print()
+
+        # キャッシュ設定
+        cache_duration_table = Table(title="⏱️ キャッシュ期間設定 (分)")
+        cache_duration_table.add_column("項目", style="cyan")
+        cache_duration_table.add_column("期間", style="yellow")
+        for key, value in CACHE_DURATION.items():
+            cache_duration_table.add_row(key, str(value))
+        self.console.print(cache_duration_table)
+        self.console.print()
+
+        # ログ設定
+        log_config_panel = Panel(
+            f"レベル: {LOG_CONFIG['level']}\n"
+            f"ファイルサイズ: {LOG_CONFIG['file_size'] / (1024 * 1024):.0f}MB\n"
+            f"バックアップ数: {LOG_CONFIG['backup_count']}\n"
+            f"エラーログファイル: {LOG_CONFIG['error_log_file']}\n"
+            f"デバッグモード: {LOG_CONFIG['debug_mode']}",
+            title="📝 ログ設定",
+            border_style="magenta"
+        )
+        self.console.print(log_config_panel)
+        self.console.print()
+
+        # パフォーマンス監視設定
+        performance_config_panel = Panel(
+            f"監視間隔: {PERFORMANCE_CONFIG['monitor_interval']}秒\n"
+            f"CPU警告閾値: {PERFORMANCE_CONFIG['cpu_warning_threshold']}%
+"
+            f"CPU危険閾値: {PERFORMANCE_CONFIG['cpu_critical_threshold']}%
+"
+            f"メモリ警告閾値: {PERFORMANCE_CONFIG['memory_warning_threshold_mb']}MB\n"
+            f"メモリ危険閾値: {PERFORMANCE_CONFIG['memory_critical_threshold_mb']}MB\n"
+            f"キャッシュヒット率警告閾値: {PERFORMANCE_CONFIG['cache_hit_rate_warning_threshold']}\n"
+            f"キャッシュヒット率危険閾値: {PERFORMANCE_CONFIG['cache_hit_rate_critical_threshold']}",
+            title="📊 パフォーマンス監視設定",
+            border_style="green"
+        )
+        self.console.print(performance_config_panel)
+        self.console.print()
+
+        # 表示設定
+        display_config_panel = Panel(
+            f"最大レース表示数: {DISPLAY_CONFIG['max_races_per_page']}\n"
+            f"推奨レベル: {', '.join(DISPLAY_CONFIG['recommendation_levels'])}\n"
+            f"スター評価: {DISPLAY_CONFIG['star_ratings']}\n"
+            f"色分け: {DISPLAY_CONFIG['color_coding']}",
+            title="🖥️ 表示設定",
+            border_style="cyan"
+        )
+        self.console.print(display_config_panel)
         Prompt.ask("[dim]Enterキーで続行[/dim]", default="")
 
     def _show_data_source_status(self):
@@ -414,6 +469,260 @@ class KeirinCLI:
             source_table.add_row(name, url, status)
         
         self.console.print(source_table)
+        Prompt.ask("[dim]Enterキーで続行[/dim]", default="")
+
+    def _handle_edit_settings(self):
+        """設定編集メニュー"""
+        self.console.clear()
+        while True:
+            edit_menu = Table(show_header=False, box=None, expand=False)
+            edit_menu.add_column(style="cyan", width=3)
+            edit_menu.add_column(style="white", width=25)
+            edit_menu.add_column(style="dim", width=30)
+
+            edit_menu.add_row("1.", "📝 ログ設定", "ログ出力に関する設定")
+            edit_menu.add_row("2.", "🌐 スクレイピング設定", "データ取得に関する設定")
+            edit_menu.add_row("3.", "⏱️ キャッシュ期間設定", "キャッシュの有効期間設定")
+            edit_menu.add_row("4.", "🎯 予想アルゴリズム重み", "予想ロジックの重み設定")
+            edit_menu.add_row("5.", "🖥️ 表示設定", "CLIの表示に関する設定")
+            edit_menu.add_row("6.", "📊 パフォーマンス監視設定", "システムパフォーマンス監視に関する設定")
+            edit_menu.add_row("0.", "⬅️  設定・管理メニューに戻る", "")
+
+            edit_panel = Panel(
+                edit_menu,
+                title="✏️ 設定編集",
+                border_style="yellow"
+            )
+            self.console.print(edit_panel)
+            self.console.print()
+
+            choice = Prompt.ask(
+                "[bold yellow]編集する設定カテゴリを選択してください (0-6)[/bold yellow]",
+                choices=["0", "1", "2", "3", "4", "5", "6"],
+                default="0"
+            )
+
+            if choice == "0":
+                break
+            elif choice == "1":
+                self._edit_log_settings()
+            elif choice == "2":
+                self._edit_scraping_settings()
+            elif choice == "3":
+                self._edit_cache_duration_settings()
+            elif choice == "4":
+                self._edit_prediction_weights()
+            elif choice == "5":
+                self._edit_display_settings()
+            elif choice == "6":
+                self._edit_performance_settings()
+
+    def _edit_log_settings(self):
+        """ログ設定を編集する"""
+        self.console.clear()
+        self.console.print(Panel("📝 [bold]ログ設定編集[/bold]", border_style="magenta"))
+        self.console.print(f"現在のログレベル: [cyan]{LOG_CONFIG['level']}[/cyan]")
+        new_level = Prompt.ask("新しいログレベルを入力してください (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
+                                choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+                                default=LOG_CONFIG['level'])
+        LOG_CONFIG['level'] = new_level
+        
+        self.console.print(f"現在のデバッグモード: [cyan]{LOG_CONFIG['debug_mode']}[/cyan]")
+        new_debug_mode = Confirm.ask("デバッグモードを有効にしますか？")
+        LOG_CONFIG['debug_mode'] = new_debug_mode
+
+        save_settings()
+        self.console.print("[green]ログ設定を更新しました。[/green]")
+        Prompt.ask("[dim]Enterキーで続行[/dim]", default="")
+
+    def _edit_scraping_settings(self):
+        """スクレイピング設定を編集する"""
+        self.console.clear()
+        self.console.print(Panel("🌐 [bold]スクレイピング設定編集[/bold]", border_style="blue"))
+
+        self.console.print(f"現在のレート制限: [cyan]{SCRAPING_CONFIG['rate_limit']}[/cyan]秒")
+        new_rate_limit = Prompt.ask("新しいレート制限 (秒) を入力してください", default=str(SCRAPING_CONFIG['rate_limit']), show_default=True)
+        try:
+            SCRAPING_CONFIG['rate_limit'] = float(new_rate_limit)
+        except ValueError:
+            self.console.print("[red]無効な入力です。数値で入力してください。[/red]")
+            return
+
+        self.console.print(f"現在のタイムアウト: [cyan]{SCRAPING_CONFIG['timeout']}[/cyan]秒")
+        new_timeout = Prompt.ask("新しいタイムアウト (秒) を入力してください", default=str(SCRAPING_CONFIG['timeout']), show_default=True)
+        try:
+            SCRAPING_CONFIG['timeout'] = int(new_timeout)
+        except ValueError:
+            self.console.print("[red]無効な入力です。整数で入力してください。[/red]")
+            return
+
+        self.console.print(f"現在の最大リトライ数: [cyan]{SCRAPING_CONFIG['max_retries']}[/cyan]回")
+        new_max_retries = Prompt.ask("新しい最大リトライ数を入力してください", default=str(SCRAPING_CONFIG['max_retries']), show_default=True)
+        try:
+            SCRAPING_CONFIG['max_retries'] = int(new_max_retries)
+        except ValueError:
+            self.console.print("[red]無効な入力です。整数で入力してください。[/red]")
+            return
+
+        save_settings()
+        self.console.print("[green]スクレイピング設定を更新しました。[/green]")
+        Prompt.ask("[dim]Enterキーで続行[/dim]", default="")
+
+    def _edit_cache_duration_settings(self):
+        """キャッシュ期間設定を編集する"""
+        self.console.clear()
+        self.console.print(Panel("⏱️ [bold]キャッシュ期間設定編集[/bold]", border_style="yellow"))
+
+        for key, value in CACHE_DURATION.items():
+            self.console.print(f"現在の {key}: [cyan]{value}[/cyan]分")
+            new_value = Prompt.ask(f"新しい {key} (分) を入力してください", default=str(value), show_default=True)
+            try:
+                CACHE_DURATION[key] = int(new_value)
+            except ValueError:
+                self.console.print("[red]無効な入力です。整数で入力してください。[/red]")
+                return
+
+        save_settings()
+        self.console.print("[green]キャッシュ期間設定を更新しました。[/green]")
+        Prompt.ask("[dim]Enterキーで続行[/dim]", default="")
+
+    def _edit_prediction_weights(self):
+        """予想アルゴリズム重み設定を編集する"""
+        self.console.clear()
+        self.console.print(Panel("🎯 [bold]予想アルゴリズム重み編集[/bold]", border_style="red"))
+
+        temp_weights = PREDICTION_WEIGHTS.copy()
+        for key, value in temp_weights.items():
+            self.console.print(f"現在の {key}: [cyan]{value:.2f}[/cyan]")
+            new_value = Prompt.ask(f"新しい {key} の重みを入力してください (0.0-1.0)", default=f"{value:.2f}", show_default=True)
+            try:
+                float_value = float(new_value)
+                if 0.0 <= float_value <= 1.0:
+                    temp_weights[key] = float_value
+                else:
+                    self.console.print("[red]無効な入力です。0.0から1.0の範囲で入力してください。[/red]")
+                    return
+            except ValueError:
+                self.console.print("[red]無効な入力です。数値で入力してください。[/red]")
+                return
+        
+        total_weight = sum(temp_weights.values())
+        if not (0.99 <= total_weight <= 1.01): # 浮動小数点誤差を考慮
+            self.console.print(f"[red]重みの合計が1.0になりません。現在の合計: {total_weight:.2f}[/red]")
+            self.console.print("[red]設定は保存されませんでした。[/red]")
+            Prompt.ask("[dim]Enterキーで続行[/dim]", default="")
+            return
+
+        PREDICTION_WEIGHTS.update(temp_weights)
+        save_settings()
+        self.console.print("[green]予想アルゴリズム重み設定を更新しました。[/green]")
+        Prompt.ask("[dim]Enterキーで続行[/dim]", default="")
+
+    def _edit_display_settings(self):
+        """表示設定を編集する"""
+        self.console.clear()
+        self.console.print(Panel("🖥️ [bold]表示設定編集[/bold]", border_style="cyan"))
+
+        self.console.print(f"現在の最大レース表示数: [cyan]{DISPLAY_CONFIG['max_races_per_page']}[/cyan]")
+        new_max_races = Prompt.ask("新しい最大レース表示数を入力してください", default=str(DISPLAY_CONFIG['max_races_per_page']), show_default=True)
+        try:
+            DISPLAY_CONFIG['max_races_per_page'] = int(new_max_races)
+        except ValueError:
+            self.console.print("[red]無効な入力です。整数で入力してください。[/red]")
+            return
+
+        self.console.print(f"現在のスター評価表示: [cyan]{DISPLAY_CONFIG['star_ratings']}[/cyan]")
+        new_star_ratings = Confirm.ask("スター評価を有効にしますか？")
+        DISPLAY_CONFIG['star_ratings'] = new_star_ratings
+
+        self.console.print(f"現在の色分け表示: [cyan]{DISPLAY_CONFIG['color_coding']}[/cyan]")
+        new_color_coding = Confirm.ask("色分け表示を有効にしますか？")
+        DISPLAY_CONFIG['color_coding'] = new_color_coding
+
+        save_settings()
+        self.console.print("[green]表示設定を更新しました。[/green]")
+        Prompt.ask("[dim]Enterキーで続行[/dim]", default="")
+
+    def _edit_performance_settings(self):
+        """パフォーマンス監視設定を編集する"""
+        self.console.clear()
+        self.console.print(Panel("📊 [bold]パフォーマンス監視設定編集[/bold]", border_style="green"))
+
+        # 監視間隔
+        self.console.print(f"現在の監視間隔: [cyan]{PERFORMANCE_CONFIG['monitor_interval']}[/cyan]秒")
+        new_interval = Prompt.ask("新しい監視間隔 (秒) を入力してください", default=str(PERFORMANCE_CONFIG['monitor_interval']), show_default=True)
+        try:
+            PERFORMANCE_CONFIG['monitor_interval'] = int(new_interval)
+        except ValueError:
+            self.console.print("[red]無効な入力です。整数で入力してください。[/red]")
+            return
+
+        # CPU警告閾値
+        self.console.print(f"現在のCPU警告閾値: [cyan]{PERFORMANCE_CONFIG['cpu_warning_threshold']}[/cyan]%")
+        new_cpu_warning = Prompt.ask("新しいCPU警告閾値 (%) を入力してください", default=str(PERFORMANCE_CONFIG['cpu_warning_threshold']), show_default=True)
+        try:
+            PERFORMANCE_CONFIG['cpu_warning_threshold'] = int(new_cpu_warning)
+        except ValueError:
+            self.console.print("[red]無効な入力です。整数で入力してください。[/red]")
+            return
+
+        # CPU危険閾値
+        self.console.print(f"現在のCPU危険閾値: [cyan]{PERFORMANCE_CONFIG['cpu_critical_threshold']}[/cyan]%")
+        new_cpu_critical = Prompt.ask("新しいCPU危険閾値 (%) を入力してください", default=str(PERFORMANCE_CONFIG['cpu_critical_threshold']), show_default=True)
+        try:
+            PERFORMANCE_CONFIG['cpu_critical_threshold'] = int(new_cpu_critical)
+        except ValueError:
+            self.console.print("[red]無効な入力です。整数で入力してください。[/red]")
+            return
+
+        # メモリ警告閾値
+        self.console.print(f"現在のメモリ警告閾値: [cyan]{PERFORMANCE_CONFIG['memory_warning_threshold_mb']}[/cyan]MB")
+        new_mem_warning = Prompt.ask("新しいメモリ警告閾値 (MB) を入力してください", default=str(PERFORMANCE_CONFIG['memory_warning_threshold_mb']), show_default=True)
+        try:
+            PERFORMANCE_CONFIG['memory_warning_threshold_mb'] = int(new_mem_warning)
+        except ValueError:
+            self.console.print("[red]無効な入力です。整数で入力してください。[/red]")
+            return
+
+        # メモリ危険閾値
+        self.console.print(f"現在のメモリ危険閾値: [cyan]{PERFORMANCE_CONFIG['memory_critical_threshold_mb']}[/cyan]MB")
+        new_mem_critical = Prompt.ask("新しいメモリ危険閾値 (MB) を入力してください", default=str(PERFORMANCE_CONFIG['memory_critical_threshold_mb']), show_default=True)
+        try:
+            PERFORMANCE_CONFIG['memory_critical_threshold_mb'] = int(new_mem_critical)
+        except ValueError:
+            self.console.print("[red]無効な入力です。整数で入力してください。[/red]")
+            return
+
+        # キャッシュヒット率警告閾値
+        self.console.print(f"現在のキャッシュヒット率警告閾値: [cyan]{PERFORMANCE_CONFIG['cache_hit_rate_warning_threshold']}[/cyan]")
+        new_cache_warning = Prompt.ask("新しいキャッシュヒット率警告閾値 (0.0-1.0) を入力してください", default=str(PERFORMANCE_CONFIG['cache_hit_rate_warning_threshold']), show_default=True)
+        try:
+            float_value = float(new_cache_warning)
+            if 0.0 <= float_value <= 1.0:
+                PERFORMANCE_CONFIG['cache_hit_rate_warning_threshold'] = float_value
+            else:
+                self.console.print("[red]無効な入力です。0.0から1.0の範囲で入力してください。[/red]")
+                return
+        except ValueError:
+            self.console.print("[red]無効な入力です。数値で入力してください。[/red]")
+            return
+
+        # キャッシュヒット率危険閾値
+        self.console.print(f"現在のキャッシュヒット率危険閾値: [cyan]{PERFORMANCE_CONFIG['cache_hit_rate_critical_threshold']}[/cyan]")
+        new_cache_critical = Prompt.ask("新しいキャッシュヒット率危険閾値 (0.0-1.0) を入力してください", default=str(PERFORMANCE_CONFIG['cache_hit_rate_critical_threshold']), show_default=True)
+        try:
+            float_value = float(new_cache_critical)
+            if 0.0 <= float_value <= 1.0:
+                PERFORMANCE_CONFIG['cache_hit_rate_critical_threshold'] = float_value
+            else:
+                self.console.print("[red]無効な入力です。0.0から1.0の範囲で入力してください。[/red]")
+                return
+        except ValueError:
+            self.console.print("[red]無効な入力です。数値で入力してください。[/red]")
+            return
+
+        save_settings()
+        self.console.print("[green]パフォーマンス監視設定を更新しました。[/green]")
         Prompt.ask("[dim]Enterキーで続行[/dim]", default="")
 
     def _show_race_list(self, races: List[RaceInfo], title: str):

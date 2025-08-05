@@ -10,6 +10,7 @@ from data.models import (
     BetRecommendation, LineInfo, RacingStyle, RiderClass
 )
 from config.settings import PREDICTION_WEIGHTS, CLASS_POINTS
+from utils.performance import performance_timer
 
 
 class KeirinPredictor:
@@ -20,6 +21,7 @@ class KeirinPredictor:
         self.class_points = CLASS_POINTS
         self.logger = logging.getLogger(__name__)
 
+    @performance_timer("predict_race")
     def predict_race(self, race_data: RaceDetail) -> PredictionResult:
         """レース予想を実行"""
         self.logger.info(f"予想開始: {race_data.race_info.race_id}")

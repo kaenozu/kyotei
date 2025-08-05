@@ -1,0 +1,2 @@
+2025-08-05 13:41:57,789 - __main__ - ERROR - エラーが発生しました: これはテスト用のエラーです
+2025-08-05 13:44:26,519 - __main__ - ERROR - エラーが発生しました: 'cp932' codec can't encode character '\U0001f6b4' in position 22: illegal multibyte sequence

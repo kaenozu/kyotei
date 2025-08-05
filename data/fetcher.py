@@ -15,6 +15,7 @@ from .models import (
 )
 from config.settings import SCRAPING_CONFIG, DATA_SOURCES
 from utils.cache import cache
+from utils.performance import performance_timer
 
 
 class KeirinDataFetcher:
@@ -55,6 +56,7 @@ class KeirinDataFetcher:
         
         return None
 
+    @performance_timer("get_today_races")
     def get_today_races(self) -> List[RaceInfo]:
         """本日のレース一覧を取得"""
         today = datetime.now().strftime("%Y%m%d")
@@ -90,6 +92,7 @@ class KeirinDataFetcher:
         cache.set(cache_key, sample_races, "race_info")
         return sample_races
 
+    @performance_timer("get_tomorrow_races")
     def get_tomorrow_races(self) -> List[RaceInfo]:
         """明日のレース一覧を取得"""
         tomorrow = (datetime.now() + timedelta(days=1)).strftime("%Y%m%d")
@@ -320,6 +323,7 @@ class KeirinDataFetcher:
             self.logger.error(f"レース情報解析エラー: {e}")
             return None
 
+    @performance_timer("get_race_details")
     def get_race_details(self, race_id: str) -> Optional[RaceDetail]:
         """特定レースの詳細情報を取得"""
         cache_key = f"race_detail_{race_id}"
