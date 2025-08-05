@@ -16,9 +16,10 @@ LOG_DIR = BASE_DIR / "logs"
 
 # データ取得設定
 DATA_SOURCES = {
-    "primary": "https://keirin.kdreams.jp",
-    "secondary": "https://keirin.jp",
-    "backup": "https://www.oddspark.com/keirin/"
+    "primary": "https://keirin.jp",
+    "secondary": "https://keirin.netkeiba.com",
+    "backup": "https://www.oddspark.com/keirin/",
+    "api": "https://api.oddspark.com"
 }
 
 # スクレイピング設定

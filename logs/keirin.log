@@ -14,3 +14,5 @@
 2025-08-05 12:58:11,873 - data.fetcher - INFO - データ取得成功: https://keirin.kdreams.jp/race-detail/20241205/平塚/01
 2025-08-05 12:58:11,878 - prediction.predictor - INFO - 予想開始: 20241205_平塚_01
 2025-08-05 12:58:11,878 - __main__ - ERROR - 予想実行エラー: list index out of range
+2025-08-05 13:04:44,532 - prediction.predictor - INFO - 予想開始: 20241205_15_01
+2025-08-05 13:04:44,534 - prediction.predictor - INFO - 予想完了: 1位予想 7番

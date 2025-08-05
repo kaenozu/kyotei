@@ -9,7 +9,11 @@
       "Bash(git commit:*)",
       "Bash(git branch:*)",
       "Bash(pip install:*)",
-      "Bash(git merge:*)"
+      "Bash(git checkout:*)",
+      "Bash(git merge:*)",
+      "Bash(git pull:*)",
+      "WebFetch(domain:keirin.jp)",
+      "WebFetch(domain:keirin.netkeiba.com)"
     ],
     "deny": []
   }
