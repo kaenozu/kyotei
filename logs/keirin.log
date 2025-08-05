@@ -1,0 +1,5 @@
+2025-08-05 12:17:44,469 - prediction.predictor - INFO - 予想開始: 20241205_15_01
+2025-08-05 12:17:44,470 - prediction.predictor - INFO - 予想完了: 1位予想 7番
+2025-08-05 12:19:32,117 - __main__ - INFO - Keirin Predictor CLI v1.0.0 起動
+2025-08-05 12:19:38,102 - data.fetcher - INFO - データ取得成功: https://keirin.kdreams.jp/schedule/20250805
+2025-08-05 12:19:56,955 - __main__ - INFO - アプリケーション終了
