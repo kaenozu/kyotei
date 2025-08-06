@@ -2,14 +2,19 @@
 キャッシュ管理システム
 """
 import sqlite3
-import pickle
+import json
 import logging
 import threading
+from dataclasses import is_dataclass, asdict
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Optional, Dict
+from collections import OrderedDict
 
-from config.settings import CACHE_DURATION, BASE_DIR
+from enum import Enum
+from config.settings import get_setting
+from config.paths import BASE_DIR
+from data.models import RaceInfo, BoatRaceGrade # RaceInfoとBoatRaceGradeをインポート
 
 
 class CacheManager:
@@ -22,7 +27,7 @@ class CacheManager:
         self.logger = logging.getLogger(__name__)
         
         # L1キャッシュ（メモリ）
-        self.memory_cache: Dict[str, tuple] = {}
+        self.memory_cache: OrderedDict[str, tuple] = OrderedDict() # OrderedDictを使用
         self.memory_cache_size = 100  # メモリキャッシュ最大サイズ
         self.lock = threading.RLock()
         
@@ -39,7 +44,7 @@ class CacheManager:
                 conn.execute("""
                     CREATE TABLE IF NOT EXISTS cache (
                         key TEXT PRIMARY KEY,
-                        data BLOB,
+                        data TEXT,
                         category TEXT,
                         created_at TIMESTAMP,
                         expires_at TIMESTAMP
@@ -53,6 +58,36 @@ class CacheManager:
         except sqlite3.Error as e:
             self.logger.error(f"キャッシュDB初期化エラー: {e}")
 
+    def _json_serialize(self, obj):
+        """カスタムJSONシリアライザ：datetimeオブジェクトをISOフォーマット文字列に変換"""
+        if is_dataclass(obj):
+            return asdict(obj)
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        # Enumオブジェクトをその値に変換
+        if isinstance(obj, Enum):
+            return obj.value
+        raise TypeError(f"Object of type {obj.__class__.__name__} is not JSON serializable")
+
+    def _json_deserialize(self, obj):
+        """カスタムJSONデシリアライザ：ISOフォーマット文字列をdatetimeオブジェクトに変換"""
+        # ISOフォーマットのdatetime文字列を検出して変換
+        if isinstance(obj, str):
+            try:
+                # 年-月-日T時間:分:秒.マイクロ秒の形式を試す
+                return datetime.fromisoformat(obj)
+            except ValueError:
+                pass
+        # RaceInfoオブジェクトの再構築を試みる
+        if isinstance(obj, dict) and all(k in obj for k in ['race_id', 'venue', 'race_number', 'start_time', 'grade', 'prize_money']):
+            try:
+                obj['start_time'] = datetime.fromisoformat(obj['start_time'])
+                obj['grade'] = BoatRaceGrade(obj['grade'])
+                return RaceInfo(**obj)
+            except (ValueError, TypeError) as e:
+                self.logger.warning(f"RaceInfoのデシリアライズに失敗しました: {e}, データ: {obj}")
+        return obj
+
     def get(self, key: str) -> Optional[Any]:
         """最適化されたキャッシュからデータを取得"""
         # L1キャッシュ（メモリ）をチェック
@@ -62,10 +97,13 @@ class CacheManager:
                 if expires_at is None or datetime.now() < expires_at:
                     self.cache_hits += 1
                     self.logger.debug(f"L1キャッシュヒット: {key}")
+                    # LRUのため、アクセスされたキーを更新
+                    self.memory_cache.move_to_end(key)
                     return value
                 else:
                     # 期限切れなので削除
                     del self.memory_cache[key]
+                    self.memory_cache.pop(key) # OrderedDictからも削除
         
         # L2キャッシュ（SQLite）をチェック
         try:
@@ -77,20 +115,19 @@ class CacheManager:
                 row = cursor.fetchone()
                 
                 if row:
-                    data_blob, expires_at_str = row
+                    data_str, expires_at_str = row
                     expires_at = datetime.fromisoformat(expires_at_str) if expires_at_str else None
                     
                     # データをデシリアライズ
-                    data = pickle.loads(data_blob)
+                    data = json.loads(data_str, object_hook=self._json_deserialize)
                     
                     # L1キャッシュに保存（LRU実装）
                     with self.lock:
                         if len(self.memory_cache) >= self.memory_cache_size:
-                            # 最も古いエントリを削除
-                            oldest_key = min(self.memory_cache.keys())
-                            del self.memory_cache[oldest_key]
+                            self.memory_cache.popitem(last=False) # 最も古いエントリを削除
                         
                         self.memory_cache[key] = (data, expires_at)
+                        self.memory_cache.move_to_end(key) # 最新に移動
                     
                     self.cache_hits += 1
                     self.logger.debug(f"L2キャッシュヒット: {key}")
@@ -111,17 +148,16 @@ class CacheManager:
             if expires_in:
                 expires_at = datetime.now() + timedelta(seconds=expires_in)
             else:
-                duration_minutes = CACHE_DURATION.get(cache_type, 30)
+                duration_minutes = get_setting("CACHE_DURATION").get(cache_type, 30)
                 expires_at = datetime.now() + timedelta(minutes=duration_minutes)
             
             # L1キャッシュに保存
             with self.lock:
                 if len(self.memory_cache) >= self.memory_cache_size:
-                    # LRU: 最も古いエントリを削除
-                    oldest_key = min(self.memory_cache.keys())
-                    del self.memory_cache[oldest_key]
+                    self.memory_cache.popitem(last=False) # 最も古いエントリを削除
                 
                 self.memory_cache[key] = (data, expires_at)
+                self.memory_cache.move_to_end(key) # 最新に移動
             
             # L2キャッシュに非同期保存
             threading.Thread(
@@ -138,7 +174,8 @@ class CacheManager:
     def _async_db_save(self, key: str, data: Any, category: str, expires_at: datetime):
         """非同期でのDB保存"""
         try:
-            data_blob = pickle.dumps(data)
+            # json.dumpsのdefault引数にカスタムシリアライザを渡す
+            data_str = json.dumps(data, default=self._json_serialize)
             
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute(
@@ -147,7 +184,7 @@ class CacheManager:
                     (key, data, category, created_at, expires_at) 
                     VALUES (?, ?, ?, ?, ?)
                     """,
-                    (key, data_blob, category, datetime.now().isoformat(), expires_at.isoformat())
+                    (key, data_str, category, datetime.now().isoformat(), expires_at.isoformat())
                 )
                 conn.commit()
         except Exception as e:
@@ -156,6 +193,10 @@ class CacheManager:
     def delete(self, key: str):
         """指定キーのキャッシュを削除"""
         try:
+            with self.lock:
+                if key in self.memory_cache:
+                    del self.memory_cache[key]
+            
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute("DELETE FROM cache WHERE key = ?", (key,))
                 conn.commit()
@@ -166,6 +207,12 @@ class CacheManager:
     def clear_expired(self):
         """期限切れキャッシュを一括削除"""
         try:
+            # L1キャッシュの期限切れを削除
+            with self.lock:
+                keys_to_delete = [k for k, v in self.memory_cache.items() if v[1] is not None and datetime.now() > v[1]]
+                for k in keys_to_delete:
+                    del self.memory_cache[k]
+
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.execute(
                     "DELETE FROM cache WHERE expires_at < ?",
@@ -183,6 +230,9 @@ class CacheManager:
     def clear_all(self):
         """全キャッシュを削除"""
         try:
+            with self.lock:
+                self.memory_cache.clear()
+
             with sqlite3.connect(self.db_path) as conn:
                 conn.execute("DELETE FROM cache")
                 conn.commit()

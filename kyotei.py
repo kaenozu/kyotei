@@ -1,21 +1,25 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
-競輪予想アプリケーション メインエントリーポイント
-"""
-#!/usr/bin/env python3
-"""
-競輪予想アプリケーション メインエントリーポイント
+競艇予想アプリケーション メインエントリーポイント
 """
 import sys
+import os
 import logging
 import click
 from pathlib import Path
+
+# Windows環境での文字化け対策
+if sys.platform.startswith('win'):
+    import codecs
+    sys.stdout = codecs.getwriter('utf-8')(sys.stdout.detach())
+    sys.stderr = codecs.getwriter('utf-8')(sys.stderr.detach())
 
 # プロジェクトルートをパスに追加
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
-from interface.cli import KeirinCLI
+from interface.cli import KyoteiCLI
 from config.settings import ensure_directories, APP_NAME, APP_VERSION, load_settings, save_settings
 from utils.cache import cache
 from utils.performance import start_performance_monitoring, stop_performance_monitoring, get_performance_summary
@@ -27,7 +31,7 @@ from utils.logger import setup_logger # setup_loggerをインポート
 @click.option('--debug', is_flag=True, help='デバッグモードで実行')
 @click.pass_context
 def main(ctx, version, debug):
-    """競輪予想CLI アプリケーション"""
+    """競艇予想CLI アプリケーション"""
     
     if version:
         click.echo(f"{APP_NAME} v{APP_VERSION}")
@@ -35,6 +39,7 @@ def main(ctx, version, debug):
     
     # コマンドが指定されていない場合はCLIを起動
     if ctx.invoked_subcommand is None:
+        logger = None
         try:
             ensure_directories()
             load_settings() # 設定をロード
@@ -44,7 +49,16 @@ def main(ctx, version, debug):
                 from config.settings import LOG_CONFIG # LOG_CONFIGを一時的にインポート
                 LOG_CONFIG["debug_mode"] = True
             
-            logger = setup_logger(__name__, log_file="keirin.log")
+            # ログ設定を簡略化
+            logging.basicConfig(
+                level=logging.INFO,
+                format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                handlers=[
+                    logging.FileHandler('kyotei.log', encoding='utf-8'),
+                    logging.StreamHandler()
+                ]
+            )
+            logger = logging.getLogger(__name__)
             logger.info(f"{APP_NAME} v{APP_VERSION} 起動")
             
             # 外部ライブラリのログレベルを調整
@@ -56,7 +70,7 @@ def main(ctx, version, debug):
             logger.info("パフォーマンス監視を開始しました")
             
             # CLIアプリケーション起動
-            app = KeirinCLI()
+            app = KyoteiCLI()
             app.run()
             
             logger.info("アプリケーション終了")
@@ -64,7 +78,8 @@ def main(ctx, version, debug):
         except KeyboardInterrupt:
             click.echo("\n終了しました。" )
         except Exception as e:
-            logger.error(f"エラーが発生しました: {e}")
+            if logger:
+                logger.error(f"エラーが発生しました: {e}")
             click.echo(f"エラーが発生しました: {e}", err=True)
             if debug:
                 raise
@@ -74,9 +89,11 @@ def main(ctx, version, debug):
                 stop_performance_monitoring()
                 # 最終パフォーマンス要約を表示
                 summary = get_performance_summary()
-                logger.info(f"パフォーマンス要約:\n{summary}")
+                if logger:
+                    logger.info(f"パフォーマンス要約:\n{summary}")
             except Exception as e:
-                logger.error(f"パフォーマンス監視停止エラー: {e}")
+                if logger:
+                    logger.error(f"パフォーマンス監視停止エラー: {e}")
             save_settings() # 設定を保存
 
 
@@ -88,15 +105,15 @@ def predict(race_id):
     logger = logging.getLogger(__name__)
     
     if not race_id:
-        click.echo("レースIDが必要です。例: python main.py predict 20241205_平塚_01")
+        click.echo("レースIDが必要です。例: python kyotei.py predict 20241205_平塚_01")
         return
     
     try:
-        from data.fetcher import KeirinDataFetcher
-        from prediction.predictor import KeirinPredictor
+        from data.fetcher import KyoteiDataFetcher
+        from prediction.predictor import KyoteiPredictor
         
-        fetcher = KeirinDataFetcher()
-        predictor = KeirinPredictor()
+        fetcher = KyoteiDataFetcher()
+        predictor = KyoteiPredictor()
         
         # レース詳細取得
         click.echo(f"レース詳細を取得中: {race_id}")
@@ -117,13 +134,13 @@ def predict(race_id):
             click.echo("予想結果が生成されませんでした。", err=True)
             return
             
-        for i, rider_num in enumerate(prediction.rankings[:3], 1):
-            rider = race_detail.get_rider_by_number(rider_num)
-            if rider:
-                score = prediction.scores[rider_num]
-                click.echo(f"{i}位: {rider_num}番 {rider.name} (スコア: {score.total_score:.1f})")
+        for i, racer_num in enumerate(prediction.rankings[:3], 1):
+            racer = race_detail.get_racer_by_number(racer_num)
+            if racer:
+                score = prediction.scores[racer_num]
+                click.echo(f"{i}位: {racer_num}番 {racer.name} (スコア: {score.total_score:.1f})")
             else:
-                click.echo(f"{i}位: {rider_num}番 (選手情報なし)")
+                click.echo(f"{i}位: {racer_num}番 (選手情報なし)")
         
         click.echo(f"\n信頼度: {prediction.confidence:.1%}")
         
@@ -163,20 +180,51 @@ def cleanup():
 
 
 @main.command()
+def real_test():
+    """実データ取得テスト """
+    logger = logging.getLogger(__name__)
+    
+    try:
+        from data.fetcher import KyoteiDataFetcher
+        
+        # データ取得テスト
+        fetcher = KyoteiDataFetcher()
+        click.echo("実データ取得中...")
+        
+        races = fetcher.get_today_races()
+        
+        if races:
+            click.echo(f"\n✅ 実データ取得成功: {len(races)}件")
+            
+            click.echo("\n=== 取得レース情報 ===")
+            for i, race in enumerate(races[:10], 1):  # 最初の10件表示
+                click.echo(f"{i}. {race.venue} {race.race_number}R - {race.start_time.strftime('%H:%M')} ({race.status})")
+            
+            if len(races) > 10:
+                click.echo(f"... 他 {len(races) - 10}件")
+        else:
+            click.echo("❌ データが取得できませんでした")
+            
+    except Exception as e:
+        logger.error(f"実データテストエラー: {e}")
+        click.echo(f"エラー: {e}", err=True)
+
+
+@main.command()
 def test():
     """サンプルデータでテスト実行"""
     logger = logging.getLogger(__name__)
     
     try:
         from data.models import create_sample_race
-        from prediction.predictor import KeirinPredictor
+        from prediction.predictor import KyoteiPredictor
         
         # パフォーマンス監視開始
         start_performance_monitoring()
         
         # サンプルレース作成
         sample_race = create_sample_race()
-        predictor = KeirinPredictor()
+        predictor = KyoteiPredictor()
         
         click.echo("サンプルレースで予想テスト中...")
         prediction = predictor.predict_race(sample_race)
@@ -184,10 +232,10 @@ def test():
         click.echo("\n=== テスト結果 ===")
         click.echo(f"レース: {sample_race.race_info.venue} {sample_race.race_info.race_number}R")
         
-        for i, rider_num in enumerate(prediction.rankings[:3], 1):
-            rider = sample_race.get_rider_by_number(rider_num)
-            score = prediction.scores[rider_num]
-            click.echo(f"{i}位: {rider_num}番 {rider.name} (スコア: {score.total_score:.1f})")
+        for i, racer_num in enumerate(prediction.rankings[:3], 1):
+            racer = sample_race.get_racer_by_number(racer_num)
+            score = prediction.scores[racer_num]
+            click.echo(f"{i}位: {racer_num}番 {racer.name} (スコア: {score.total_score:.1f})")
         
         click.echo(f"信頼度: {prediction.confidence:.1%}")
         

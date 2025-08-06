@@ -1,20 +1,20 @@
 """
-競輪予想エンジン
+競艇予想エンジン
 """
 import logging
 from typing import List, Dict, Tuple
 from datetime import datetime
 
 from data.models import (
-    RaceDetail, RiderInfo, PredictionResult, PredictionScore,
-    BetRecommendation, LineInfo, RacingStyle, RiderClass
+    RaceDetail, BoatRacerInfo, PredictionResult, PredictionScore,
+    BetRecommendation, BoatRaceLaneInfo, BoatRacingStyle, BoatRacerClass
 )
 from config.settings import PREDICTION_WEIGHTS, CLASS_POINTS
 from utils.performance import performance_timer
 
 
-class KeirinPredictor:
-    """競輪予想エンジン"""
+class KyoteiPredictor:
+    """競艇予想エンジン"""
 
     def __init__(self):
         self.weights = PREDICTION_WEIGHTS
@@ -28,9 +28,9 @@ class KeirinPredictor:
         
         # 各選手のスコア計算
         scores = {}
-        for rider in race_data.riders:
-            score = self._calculate_total_score(rider, race_data)
-            scores[rider.number] = score
+        for racer in race_data.racers:
+            score = self._calculate_total_score(racer, race_data)
+            scores[racer.number] = score
 
         # ランキング作成
         rankings = sorted(scores.keys(), key=lambda x: scores[x].total_score, reverse=True)
@@ -52,67 +52,67 @@ class KeirinPredictor:
         self.logger.info(f"予想完了: 1位予想 {rankings[0]}番")
         return result
 
-    def _calculate_total_score(self, rider: RiderInfo, race_data: RaceDetail) -> PredictionScore:
+    def _calculate_total_score(self, racer: BoatRacerInfo, race_data: RaceDetail) -> PredictionScore:
         """選手の総合スコアを計算"""
         # 各評価項目のスコア計算
-        ability_score = self._evaluate_rider_ability(rider)
-        form_score = self._evaluate_recent_form(rider)
-        track_score = self._evaluate_track_compatibility(rider, race_data.race_info.venue)
-        line_score = self._evaluate_line_strategy(rider, race_data)
-        external_score = self._evaluate_external_factors(rider, race_data)
+        ability_score = self._evaluate_racer_ability(racer)
+        form_score = self._evaluate_recent_form(racer)
+        track_score = self._evaluate_track_compatibility(racer, race_data.race_info.venue)
+        lane_score = self._evaluate_lane_strategy(racer, race_data)
+        external_score = self._evaluate_external_factors(racer, race_data)
         
         # 重み付き合計
         total_score = (
-            ability_score * self.weights['rider_ability'] +
+            ability_score * self.weights['racer_ability'] +
             form_score * self.weights['recent_form'] +
             track_score * self.weights['track_compatibility'] +
-            line_score * self.weights['line_strategy'] +
+            lane_score * self.weights['lane_strategy'] +
             external_score * self.weights['external_factors']
         )
         
         # 信頼度計算
-        confidence = self._calculate_rider_confidence(
-            ability_score, form_score, track_score, line_score, external_score
+        confidence = self._calculate_racer_confidence(
+            ability_score, form_score, track_score, lane_score, external_score
         )
         
         return PredictionScore(
-            rider_number=rider.number,
+            racer_number=racer.number,
             total_score=total_score,
             ability_score=ability_score,
             form_score=form_score,
             track_score=track_score,
-            line_score=line_score,
+            line_score=lane_score,
             external_score=external_score,
             confidence=confidence
         )
 
-    def _evaluate_rider_ability(self, rider: RiderInfo) -> float:
+    def _evaluate_racer_ability(self, racer: BoatRacerInfo) -> float:
         """選手の基本能力を評価（改善版）"""
         ability_score = 0.0
         
         # 級班による基礎点（強化）
-        class_score = self.class_points.get(rider.class_rank.value, 50)
+        class_score = self.class_points.get(racer.racer_class.value, 50)
         ability_score += class_score
         
         # 勝率による補正（より詳細な分析）
-        if rider.stats:
+        if racer.racer_stats:
             # 勝率の非線形評価（上位選手はより高評価）
-            win_rate_factor = 1 + (rider.stats.win_rate * 2) ** 1.5
-            place_rate_factor = 1 + (rider.stats.place_rate * 1.5) ** 1.2
-            show_rate_factor = 1 + (rider.stats.show_rate * 1.2) ** 1.1
+            win_rate_factor = 1 + (racer.racer_stats.win_rate * 2) ** 1.5
+            place_rate_factor = 1 + (racer.racer_stats.place_rate * 1.5) ** 1.2
+            show_rate_factor = 1 + (racer.racer_stats.show_rate * 1.2) ** 1.1
             
             ability_score *= (win_rate_factor + place_rate_factor + show_rate_factor) / 3
             
             # 総レース数による信頼度調整
-            experience_factor = min(1.2, 1 + (rider.stats.total_races / 500))
+            experience_factor = min(1.2, 1 + (racer.racer_stats.total_races / 500))
             ability_score *= experience_factor
         
         # 年齢による補正（より詳細なピーク分析）
-        age_factor = self._calculate_age_performance_factor(rider.age)
+        age_factor = self._calculate_age_performance_factor(racer.age)
         ability_score *= age_factor
         
         # 級班と成績の整合性チェック
-        consistency_factor = self._evaluate_class_consistency(rider)
+        consistency_factor = self._evaluate_class_consistency(racer)
         ability_score *= consistency_factor
         
         return ability_score
@@ -132,18 +132,18 @@ class KeirinPredictor:
         else:
             return max(0.7, 0.85 - (age - 42) * 0.02)  # 更なる下降、最低0.7
 
-    def _evaluate_class_consistency(self, rider: RiderInfo) -> float:
+    def _evaluate_class_consistency(self, racer: BoatRacerInfo) -> float:
         """級班と成績の整合性を評価"""
-        if not rider.stats:
+        if not racer.racer_stats:
             return 1.0
         
-        # 級班に期待される勝率
+        # 級班に期待される勝率（競艇用）
         expected_win_rates = {
-            "S1": 0.25, "S2": 0.20, "A1": 0.15, "A2": 0.12, "A3": 0.08
+            "A1": 0.25, "A2": 0.18, "B1": 0.12, "B2": 0.08
         }
         
-        expected_rate = expected_win_rates.get(rider.class_rank.value, 0.10)
-        actual_rate = rider.stats.win_rate
+        expected_rate = expected_win_rates.get(racer.racer_class.value, 0.10)
+        actual_rate = racer.racer_stats.win_rate
         
         # 実際の勝率が期待より高い場合は上昇期、低い場合は下降期
         if actual_rate > expected_rate:
@@ -151,13 +151,13 @@ class KeirinPredictor:
         else:
             return max(0.8, 1 - (expected_rate - actual_rate) * 1.5)
 
-    def _evaluate_recent_form(self, rider: RiderInfo) -> float:
+    def _evaluate_recent_form(self, racer: BoatRacerInfo) -> float:
         """直近の調子を評価（改善版）"""
-        if not rider.stats or not rider.stats.recent_results:
+        if not racer.racer_stats or not racer.racer_stats.recent_results:
             return 50.0  # デフォルト値
         
         # 直近10走まで拡張
-        recent_results = rider.stats.recent_results[-10:]
+        recent_results = racer.racer_stats.recent_results[-10:]
         if not recent_results:
             return 50.0
         
@@ -244,80 +244,78 @@ class KeirinPredictor:
         stability = 1.0 + (5.0 - variance) * 0.02
         return max(0.9, min(1.1, stability))
 
-    def _evaluate_track_compatibility(self, rider: RiderInfo, venue: str) -> float:
+    def _evaluate_track_compatibility(self, racer: BoatRacerInfo, venue: str) -> float:
         """バンクとの相性を評価"""
-        if not rider.stats:
+        if not racer.racer_stats:
             return 50.0
         
         # 当場での成績
-        venue_stats = rider.stats.venue_stats.get(venue, {})
-        venue_win_rate = venue_stats.get('win_rate', rider.stats.win_rate)
-        venue_place_rate = venue_stats.get('place_rate', rider.stats.place_rate)
+        venue_stats = racer.racer_stats.venue_stats.get(venue, {})
+        venue_win_rate = venue_stats.get('win_rate', racer.racer_stats.win_rate)
+        venue_place_rate = venue_stats.get('place_rate', racer.racer_stats.place_rate)
         
         compatibility_score = venue_win_rate * 100 + venue_place_rate * 50
         
         # バンクの特徴による補正
         track_features = self._get_track_features(venue)
         
-        # 選手の脚質とバンクの相性
-        style_bonus = self._calculate_style_compatibility(rider.racing_style, track_features)
+        # 選手のスタイルと水面の相性
+        style_bonus = self._calculate_style_compatibility(racer.boat_racing_style, track_features)
         compatibility_score += style_bonus
         
         return compatibility_score
 
-    def _evaluate_line_strategy(self, rider: RiderInfo, race_data: RaceDetail) -> float:
-        """ライン戦略による評価"""
-        line = race_data.get_line_by_rider(rider.number)
-        if not line:
-            return 40.0  # 単騎の場合
+    def _evaluate_lane_strategy(self, racer: BoatRacerInfo, race_data: RaceDetail) -> float:
+        """レーン戦略による評価"""
+        lane = race_data.get_lane_by_racer(racer.number)
+        if not lane:
+            return 40.0  # デフォルト
         
-        line_score = 0.0
+        lane_score = 0.0
         
-        # ライン内での役割による評価
-        if line.leader_number == rider.number:
-            # ライン先頭
-            line_score += 25
-        elif rider.number in line.members[:2]:
-            # 番手
-            line_score += 20
+        # レーン位置による評価（競艇は1コースが有利）
+        if lane.lane_number == 1:
+            lane_score += 40  # 1コースは大幅有利
+        elif lane.lane_number == 2:
+            lane_score += 25  # 2コースも有利
+        elif lane.lane_number == 3:
+            lane_score += 15  # 3コースは普通
+        elif lane.lane_number == 4:
+            lane_score += 10  # 4コースはやや不利
         else:
-            # 3番手以降
-            line_score += 15
+            lane_score += 5   # 5,6コースは不利
         
-        # ライン全体の強さ
-        line_score += line.strength * 30
+        # スタートタイミング補正
+        if lane.start_timing is not None:
+            if lane.start_timing > 0.05:  # 出過ぎ
+                lane_score -= 10
+            elif lane.start_timing < -0.05:  # 出遅れ
+                lane_score -= 5
         
-        # ライン人数による補正
-        line_size = len(line.members)
-        if line_size == 3:
-            line_score += 10  # 理想的なライン
-        elif line_size == 2:
-            line_score += 5
-        elif line_size == 1:
-            line_score -= 5   # 単騎は不利
-        
-        return line_score
+        return lane_score
 
-    def _evaluate_external_factors(self, rider: RiderInfo, race_data: RaceDetail) -> float:
+    def _evaluate_external_factors(self, racer: BoatRacerInfo, race_data: RaceDetail) -> float:
         """外部要因による評価"""
         external_score = 50.0  # ベーススコア
         
-        # 天候による影響
-        if race_data.weather == "雨" and hasattr(rider, 'wet_performance'):
-            if rider.wet_performance > 0.7:
-                external_score += 10
-            elif rider.wet_performance < 0.3:
-                external_score -= 10
-        
-        # 風による影響
-        if race_data.wind_speed > 5.0:
-            # 逃げ・先行タイプは向かい風に不利
-            if rider.racing_style in [RacingStyle.SPRINTER, RacingStyle.LEADER]:
+        # 天候による影響（競艇は水面なので雨の影響は少ない）
+        if race_data.weather == "雨" and hasattr(racer, 'wet_performance'):
+            if racer.wet_performance > 0.7:
+                external_score += 5
+            elif racer.wet_performance < 0.3:
                 external_score -= 5
         
+        # 風による影響（競艇は風の影響が大きい）
+        if race_data.wind_speed > 3.0:
+            # インコースは向かい風に不利
+            if racer.boat_racing_style == BoatRacingStyle.INNER:
+                external_score -= 8
+            elif racer.boat_racing_style == BoatRacingStyle.MAKURI:
+                external_score += 5  # まくりは風に強い
+        
         # オッズによる市場評価（人気薄は穴狙い）
-        if race_data.odds and rider.number in race_data.odds.win_odds:
-            odds = race_data.odds.win_odds[rider.number]
+        if race_data.odds and racer.number in race_data.odds.win_odds:
+            odds = race_data.odds.win_odds[racer.number]
             if 3.0 <= odds <= 8.0:  # 中穴
                 external_score += 5
             elif odds > 15.0:  # 大穴
@@ -326,33 +324,36 @@ class KeirinPredictor:
         return external_score
 
     def _get_track_features(self, venue: str) -> Dict[str, bool]:
-        """バンクの特徴を取得"""
-        # 開催場ごとの特徴（実際の競輪場の特徴を反映）
+        """競艇場の特徴を取得"""
+        # 競艇場ごとの特徴（実際の競艇場の特徴を反映）
         track_features_map = {
-            "平塚": {"sprint_favorable": True, "wind_prone": True},
-            "川崎": {"endurance_favorable": True, "tight_turns": True},
-            "小田原": {"sprint_favorable": True, "short_straight": True},
-            "静岡": {"balanced": True},
+            "桐生": {"inner_favorable": True, "wind_prone": True},
+            "戸田": {"inner_favorable": True, "calm_water": True},
+            "江戸川": {"tide_effect": True, "wind_prone": True},
+            "平和島": {"balanced": True, "sea_water": True},
+            "多摩川": {"inner_favorable": True, "calm_water": True},
+            "浜名湖": {"brackish_water": True, "balanced": True},
+            "蒲郡": {"sea_water": True, "wind_prone": True},
         }
         
         return track_features_map.get(venue, {"balanced": True})
 
-    def _calculate_style_compatibility(self, style: RacingStyle, features: Dict[str, bool]) -> float:
-        """脚質とバンクの相性を計算"""
+    def _calculate_style_compatibility(self, style: BoatRacingStyle, features: Dict[str, bool]) -> float:
+        """スタイルと水面の相性を計算"""
         bonus = 0.0
         
-        if style == RacingStyle.SPRINTER and features.get('sprint_favorable'):
-            bonus += 15
-        elif style == RacingStyle.LEADER and features.get('sprint_favorable'):
-            bonus += 10
-        elif style == RacingStyle.TRACKER and features.get('endurance_favorable'):
-            bonus += 15
-        elif style == RacingStyle.SWEEPER and features.get('endurance_favorable'):
-            bonus += 12
+        if style == BoatRacingStyle.INNER and features.get('inner_favorable'):
+            bonus += 20  # イン有利水面
+        elif style == BoatRacingStyle.SASHI and features.get('calm_water'):
+            bonus += 15  # 差しは穏やかな水面が有利
+        elif style == BoatRacingStyle.MAKURI and features.get('wind_prone'):
+            bonus += 12  # まくりは風に強い
+        elif style == BoatRacingStyle.OUTSIDE and features.get('sea_water'):
+            bonus += 10  # アウトは海水で有利
         
         return bonus
 
-    def _calculate_rider_confidence(self, *scores) -> float:
+    def _calculate_racer_confidence(self, *scores) -> float:
         """選手スコアの信頼度を計算"""
         # スコアのばらつきから信頼度を算出
         avg_score = sum(scores) / len(scores)

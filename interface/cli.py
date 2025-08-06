@@ -1,5 +1,5 @@
 """
-競輪予想CLI インターフェース
+競艇予想CLI インターフェース
 """
 import logging
 from typing import List, Optional, Dict, Any
@@ -15,19 +15,19 @@ from rich.layout import Layout
 from rich.live import Live
 
 from data.models import RaceInfo, RaceDetail, PredictionResult, BetRecommendation
-from data.fetcher import KeirinDataFetcher
-from prediction.predictor import KeirinPredictor
+from data.fetcher import KyoteiDataFetcher
+from prediction.predictor import KyoteiPredictor
 from config.settings import APP_NAME, APP_VERSION, DISPLAY_CONFIG, LOG_CONFIG, SCRAPING_CONFIG, CACHE_DURATION, PREDICTION_WEIGHTS, PERFORMANCE_CONFIG, save_settings
 from config.config_manager import config_manager
 
 
-class KeirinCLI:
-    """競輪予想CLI メインインターフェース"""
+class KyoteiCLI:
+    """競艇予想CLI メインインターフェース"""
 
     def __init__(self):
         self.console = Console()
-        self.fetcher = KeirinDataFetcher()
-        self.predictor = KeirinPredictor()
+        self.fetcher = KyoteiDataFetcher()
+        self.predictor = KyoteiPredictor()
         self.logger = logging.getLogger(__name__)
 
     def run(self):
@@ -67,8 +67,8 @@ class KeirinCLI:
     def _show_welcome(self):
         """ウェルカムメッセージ表示"""
         welcome_panel = Panel(
-            Text(f"🚴 {APP_NAME} v{APP_VERSION}", style="bold blue", justify="center"),
-            subtitle="競輪予想システムへようこそ",
+            Text(f"🚤 {APP_NAME} v{APP_VERSION}", style="bold blue", justify="center"),
+            subtitle="競艇予想システムへようこそ",
             style="blue"
         )
         self.console.print(welcome_panel)
@@ -93,7 +93,7 @@ class KeirinCLI:
         
         menu_table.add_row("1.", "📅 本日のレース一覧", "今日開催中のレースを表示")
         menu_table.add_row("2.", "📈 明日のレース一覧", "明日開催予定のレースを表示")
-        menu_table.add_row("3.", "🔍 開催場検索", "特定の競輪場からレースを検索")
+        menu_table.add_row("3.", "🔍 開催場検索", "特定の競艇場からレースを検索")
         menu_table.add_row("4.", "📊 予想履歴", "過去の予想結果を確認")
         menu_table.add_row("5.", "⚙️  設定・管理", "アプリケーション設定とキャッシュ管理")
         menu_table.add_row("6.", "❓ ヘルプ", "使い方とコマンド一覧")
@@ -101,7 +101,7 @@ class KeirinCLI:
         
         menu_panel = Panel(
             menu_table,
-            title="🚴 競輪予想システム - メインメニュー",
+            title="🚤 競艇予想システム - メインメニュー",
             title_align="center",
             border_style="blue"
         )
@@ -162,27 +162,27 @@ class KeirinCLI:
         self.console.clear()
         
         # 開催場リストを表示
-        venues_table = Table(title="🏟️ 競輪場一覧")
+        venues_table = Table(title="🏟️ 競艇場一覧")
         venues_table.add_column("No.", style="cyan", width=4)
-        venues_table.add_column("競輪場", style="yellow", width=12)
+        venues_table.add_column("競艇場", style="yellow", width=12)
         venues_table.add_column("距離", style="green", width=8)
-        venues_table.add_column("バンク", style="magenta", width=8)
+        venues_table.add_column("水質", style="magenta", width=8)
         venues_table.add_column("特徴", style="blue", width=15)
         
         from config.settings import VENUES
         venue_list = list(VENUES.items())[:10]  # 表示を10件に制限
         
         for i, (venue_name, info) in enumerate(venue_list, 1):
-            distance = f"{info.get('distance', 400)}m"
-            banking = f"{info.get('banking', 31.5)}°"
-            features = "標準バンク"  # 実際の特徴は設定ファイルから取得
+            distance = f"{info.get('distance', 1800)}m"
+            water_quality = info.get('water_quality', '淡水')
+            wind_effect = info.get('wind_effect', '普通')
             
             venues_table.add_row(
                 str(i),
                 venue_name,
                 distance,
-                banking,
-                features
+                water_quality,
+                f"風:{wind_effect}"
             )
         
         self.console.print(venues_table)
@@ -190,7 +190,7 @@ class KeirinCLI:
         
         # 開催場選択
         venue_choice = Prompt.ask(
-            "[bold cyan]検索したい競輪場番号を入力してください (0: 戻る)[/bold cyan]",
+            "[bold cyan]検索したい競艇場番号を入力してください (0: 戻る)[/bold cyan]",
             choices=[str(i) for i in range(len(venue_list) + 1)],
             default="0"
         )
@@ -260,7 +260,7 @@ class KeirinCLI:
         )
         help_table.add_row(
             "開催場検索",
-            "特定の競輪場のレースを検索",
+            "特定の競艇場のレースを検索",
             "メニューから「3」を選択"
         )
         help_table.add_row(
@@ -280,11 +280,11 @@ class KeirinCLI:
         # コマンドライン版のヘルプ
         cmd_panel = Panel(
             "💻 コマンドライン版の使い方:\n\n"
-            "• python main.py test          - サンプルデータでテスト\n"
-            "• python main.py predict [ID] - 特定レースの予想\n"
-            "• python main.py cache-info   - キャッシュ情報表示\n"
-            "• python main.py clear-cache  - キャッシュクリア\n"
-            "• python main.py --version    - バージョン表示",
+            "• python kyotei.py test          - サンプルデータでテスト\n"
+            "• python kyotei.py predict [ID] - 特定レースの予想\n"
+            "• python kyotei.py cache-info   - キャッシュ情報表示\n"
+            "• python kyotei.py clear-cache  - キャッシュクリア\n"
+            "• python kyotei.py --version    - バージョン表示",
             title="コマンドライン版",
             border_style="green"
         )
@@ -384,10 +384,10 @@ class KeirinCLI:
         weights_table.add_column("重み", style="yellow")
         weights_table.add_column("説明", style="white")
         
-        weights_table.add_row("選手能力", f"{PREDICTION_WEIGHTS['rider_ability']:.1%}", "級班・勝率・年齢")
+        weights_table.add_row("選手能力", f"{PREDICTION_WEIGHTS['racer_ability']:.1%}", "級班・勝率・年齢")
         weights_table.add_row("近況フォーム", f"{PREDICTION_WEIGHTS['recent_form']:.1%}", "直近成績・トレンド")
-        weights_table.add_row("バンク相性", f"{PREDICTION_WEIGHTS['track_compatibility']:.1%}", "開催場での成績")
-        weights_table.add_row("ライン戦略", f"{PREDICTION_WEIGHTS['line_strategy']:.1%}", "ライン形成・役割")
+        weights_table.add_row("水面相性", f"{PREDICTION_WEIGHTS['track_compatibility']:.1%}", "競艇場での成績")
+        weights_table.add_row("レーン戦略", f"{PREDICTION_WEIGHTS['lane_strategy']:.1%}", "コース位置・スタート")
         weights_table.add_row("外部要因", f"{PREDICTION_WEIGHTS['external_factors']:.1%}", "天候・オッズ・風")
         
         self.console.print(weights_table)
@@ -429,10 +429,8 @@ class KeirinCLI:
         # パフォーマンス監視設定
         performance_config_panel = Panel(
             f"監視間隔: {PERFORMANCE_CONFIG['monitor_interval']}秒\n"
-            f"CPU警告閾値: {PERFORMANCE_CONFIG['cpu_warning_threshold']}%
-"
-            f"CPU危険閾値: {PERFORMANCE_CONFIG['cpu_critical_threshold']}%
-"
+            f"CPU警告閾値: {PERFORMANCE_CONFIG['cpu_warning_threshold']}%\n"
+            f"CPU危険閾値: {PERFORMANCE_CONFIG['cpu_critical_threshold']}%\n"
             f"メモリ警告閾値: {PERFORMANCE_CONFIG['memory_warning_threshold_mb']}MB\n"
             f"メモリ危険閾値: {PERFORMANCE_CONFIG['memory_critical_threshold_mb']}MB\n"
             f"キャッシュヒット率警告閾値: {PERFORMANCE_CONFIG['cache_hit_rate_warning_threshold']}\n"
@@ -833,42 +831,42 @@ class KeirinCLI:
         self.console.print()
         
         # 選手予想テーブル
-        riders_table = Table(title="🔮 予想結果")
-        riders_table.add_column("車番", style="cyan", width=4)
-        riders_table.add_column("選手名", style="yellow", width=12)
-        riders_table.add_column("年齢", style="white", width=4)
-        riders_table.add_column("級班", style="magenta", width=4)
-        riders_table.add_column("勝率", style="green", width=6)
-        riders_table.add_column("連対率", style="green", width=8)
-        riders_table.add_column("予想順位", style="red", width=8)
-        riders_table.add_column("推奨度", style="bold red", width=6)
+        racers_table = Table(title="🔮 予想結果")
+        racers_table.add_column("艇番", style="cyan", width=4)
+        racers_table.add_column("選手名", style="yellow", width=12)
+        racers_table.add_column("年齢", style="white", width=4)
+        racers_table.add_column("級班", style="magenta", width=4)
+        racers_table.add_column("勝率", style="green", width=6)
+        racers_table.add_column("連対率", style="green", width=8)
+        racers_table.add_column("予想順位", style="red", width=8)
+        racers_table.add_column("推奨度", style="bold red", width=6)
         
-        for rank, rider_num in enumerate(prediction.rankings, 1):
-            rider = race.get_rider_by_number(rider_num)
-            if not rider:
+        for rank, racer_num in enumerate(prediction.rankings, 1):
+            racer = race.get_racer_by_number(racer_num)
+            if not racer:
                 continue
             
-            score = prediction.scores[rider_num]
+            score = prediction.scores[racer_num]
             
             # 推奨度による★表示
             stars = self._get_recommendation_stars(score.total_score)
             recommendation = self._get_recommendation_grade(score.total_score)
             
-            win_rate = rider.stats.win_rate if rider.stats else 0.0
-            place_rate = rider.stats.place_rate if rider.stats else 0.0
+            win_rate = racer.racer_stats.win_rate if racer.racer_stats else 0.0
+            place_rate = racer.racer_stats.place_rate if racer.racer_stats else 0.0
             
-            riders_table.add_row(
-                str(rider.number),
-                rider.name,
-                str(rider.age),
-                rider.class_rank.value,
+            racers_table.add_row(
+                str(racer.number),
+                racer.name,
+                str(racer.age),
+                racer.racer_class.value,
                 f"{win_rate:.2f}",
                 f"{place_rate:.2f}",
                 f"{rank}位 {stars}",
                 Text(recommendation, style=self._get_recommendation_color(recommendation))
             )
         
-        self.console.print(riders_table)
+        self.console.print(racers_table)
         self.console.print()
         
         # 買い目推奨表示

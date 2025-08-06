@@ -1,5 +1,5 @@
 """
-競輪データ取得システム
+競艇データ取得システム
 """
 import requests
 import time
@@ -10,16 +10,16 @@ from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 
 from .models import (
-    RaceInfo, RaceDetail, RiderInfo, RiderStats, RaceResult,
-    RaceGrade, RiderClass, RacingStyle, OddsInfo, LineInfo
+    RaceInfo, RaceDetail, BoatRacerInfo, BoatRacerStats, RaceResult,
+    BoatRaceGrade, BoatRacerClass, BoatRacingStyle, OddsInfo, BoatRaceLaneInfo
 )
 from config.settings import SCRAPING_CONFIG, DATA_SOURCES
 from utils.cache import cache
 from utils.performance import performance_timer
 
 
-class KeirinDataFetcher:
-    """競輪データ取得クラス"""
+class KyoteiDataFetcher:
+    """競艇データ取得クラス"""
 
     def __init__(self):
         self.session = requests.Session()
@@ -70,18 +70,31 @@ class KeirinDataFetcher:
         
         races = []
         
-        # まず複数のソースからデータ取得を試行
+        # まず実データ取得を試行
+        try:
+            from .real_fetcher import real_fetcher
+            if real_fetcher.test_connection():
+                self.logger.info("実データ取得を試行中...")
+                races = real_fetcher.get_today_races()
+                if races:
+                    self.logger.info(f"実データ取得成功: {len(races)}件")
+                    cache.set(cache_key, races, "race_info")
+                    return races
+        except Exception as e:
+            self.logger.warning(f"実データ取得失敗: {e}")
+        
+        # 実データ取得失敗時は既存のソースを試行
         for source_name, base_url in DATA_SOURCES.items():
             if source_name == "api":
                 continue  # APIは別途処理
                 
             try:
                 races = self._fetch_races_from_source(source_name, base_url)
-                if races:
-                    self.logger.info(f"{source_name}からレース情報を取得成功: {len(races)}件")
-                    # 成功したらキャッシュに保存
-                    cache.set(cache_key, races, "race_info")
-                    return races
+                # 通常のソースでは実データが取得できないので、この部分はスキップ
+                # if races:
+                #     self.logger.info(f"{source_name}からレース情報を取得成功: {len(races)}件")
+                #     cache.set(cache_key, races, "race_info")
+                #     return races
             except Exception as e:
                 self.logger.warning(f"{source_name}からの取得失敗: {e}")
                 continue
@@ -155,7 +168,7 @@ class KeirinDataFetcher:
         """明日のサンプルレースデータを生成"""
         races = []
         tomorrow = datetime.now() + timedelta(days=1)
-        venues = ["函館", "青森", "いわき平", "弥彦"]
+        venues = ["桐生", "戸田", "江戸川", "平和島"]
         
         for i, venue in enumerate(venues):
             for race_num in range(1, 4):
@@ -172,8 +185,8 @@ class KeirinDataFetcher:
                     venue=venue,
                     race_number=race_num,
                     start_time=start_time,
-                    grade=RaceGrade.F1,
-                    prize_money=100
+                    grade=BoatRaceGrade.GENERAL,
+                    prize_money=200
                 )
                 races.append(race)
         
@@ -183,16 +196,16 @@ class KeirinDataFetcher:
         """日付指定でソースからレース情報を取得"""
         # 実装は_fetch_races_from_sourceと同様だが、日付パラメータを追加
         if source_name == "primary":
-            return self._fetch_from_keirin_jp_by_date(base_url, date_str)
+            return self._fetch_from_boatrace_jp_by_date(base_url, date_str)
         elif source_name == "secondary":
-            return self._fetch_from_netkeirin_by_date(base_url, date_str)
+            return self._fetch_from_boatrace_net_by_date(base_url, date_str)
         elif source_name == "backup":
             return self._fetch_from_oddspark_by_date(base_url, date_str)
         return []
 
-    def _fetch_from_keirin_jp_by_date(self, base_url: str, date_str: str) -> List[RaceInfo]:
-        """指定日の競輪公式サイトからデータ取得"""
-        schedule_url = f"{base_url}/pc/raceschedule/{date_str}"
+    def _fetch_from_boatrace_jp_by_date(self, base_url: str, date_str: str) -> List[RaceInfo]:
+        """指定日の競艇公式サイトからデータ取得"""
+        schedule_url = f"{base_url}/owpc/pc/race/{date_str}"
         soup = self._fetch_with_retry(schedule_url)
         
         if not soup:
@@ -208,8 +221,8 @@ class KeirinDataFetcher:
         
         return races
 
-    def _fetch_from_netkeirin_by_date(self, base_url: str, date_str: str) -> List[RaceInfo]:
-        """指定日のnetkeirinからデータ取得"""
+    def _fetch_from_boatrace_net_by_date(self, base_url: str, date_str: str) -> List[RaceInfo]:
+        """指定日のboatrace.netからデータ取得"""
         return []  # 現在は未実装
 
     def _fetch_from_oddspark_by_date(self, base_url: str, date_str: str) -> List[RaceInfo]:
@@ -219,16 +232,16 @@ class KeirinDataFetcher:
     def _fetch_races_from_source(self, source_name: str, base_url: str) -> List[RaceInfo]:
         """指定されたソースからレース情報を取得"""
         if source_name == "primary":
-            return self._fetch_from_keirin_jp(base_url)
+            return self._fetch_from_boatrace_jp(base_url)
         elif source_name == "secondary":
-            return self._fetch_from_netkeirin(base_url)
+            return self._fetch_from_boatrace_net(base_url)
         elif source_name == "backup":
             return self._fetch_from_oddspark(base_url)
         return []
 
-    def _fetch_from_keirin_jp(self, base_url: str) -> List[RaceInfo]:
-        """競輪公式サイトからデータ取得"""
-        schedule_url = f"{base_url}/pc/raceschedule"
+    def _fetch_from_boatrace_jp(self, base_url: str) -> List[RaceInfo]:
+        """競艇公式サイトからデータ取得"""
+        schedule_url = f"{base_url}/owpc/pc/race"
         soup = self._fetch_with_retry(schedule_url)
         
         if not soup:
@@ -244,8 +257,8 @@ class KeirinDataFetcher:
         
         return races
 
-    def _fetch_from_netkeirin(self, base_url: str) -> List[RaceInfo]:
-        """netkeirinからデータ取得"""
+    def _fetch_from_boatrace_net(self, base_url: str) -> List[RaceInfo]:
+        """boatrace.netからデータ取得"""
         # AJAXエンドポイントを使用してデータ取得を試行
         ajax_url = f"{base_url}/race/ajax_race_voting.html"
         
@@ -344,8 +357,8 @@ class KeirinDataFetcher:
         
         date_str, venue, race_number = parts[0], parts[1], int(parts[2])
         
-        # レース詳細ページのURL構築（競輪公式サイト形式）
-        detail_url = f"{DATA_SOURCES['primary']}/pc/race"
+        # レース詳細ページのURL構築（競艇公式サイト形式）
+        detail_url = f"{DATA_SOURCES['primary']}/owpc/pc/race"
         soup = self._fetch_with_retry(detail_url)
         
         if not soup:
@@ -369,31 +382,31 @@ class KeirinDataFetcher:
         race_info = self._parse_race_info_from_detail(soup, race_id)
         
         # 選手情報の解析
-        riders = self._parse_riders_from_detail(soup)
+        racers = self._parse_racers_from_detail(soup)
         
-        # ライン情報の解析
-        lines = self._parse_lines_from_detail(soup, riders)
+        # レーン情報の解析
+        lanes = self._parse_lanes_from_detail(soup, racers)
         
         # オッズ情報の解析
         odds = self._parse_odds_from_detail(soup)
         
         return RaceDetail(
             race_info=race_info,
-            riders=riders,
-            lines=lines,
+            racers=racers,
+            lanes=lanes,
             odds=odds
         )
 
-    def _parse_riders_from_detail(self, soup: BeautifulSoup) -> List[RiderInfo]:
+    def _parse_racers_from_detail(self, soup: BeautifulSoup) -> List[BoatRacerInfo]:
         """選手情報を解析"""
-        riders = []
-        rider_elements = soup.find_all('tr', class_='rider-row')
+        racers = []
+        racer_elements = soup.find_all('tr', class_='racer-row')
         
-        for i, element in enumerate(rider_elements, 1):
+        for i, element in enumerate(racer_elements, 1):
             try:
-                name_elem = element.find('td', class_='rider-name')
-                age_elem = element.find('td', class_='rider-age')
-                class_elem = element.find('td', class_='rider-class')
+                name_elem = element.find('td', class_='racer-name')
+                age_elem = element.find('td', class_='racer-age')
+                class_elem = element.find('td', class_='racer-class')
                 
                 if not all([name_elem, age_elem, class_elem]):
                     continue
@@ -402,80 +415,77 @@ class KeirinDataFetcher:
                 age = int(age_elem.get_text(strip=True))
                 class_str = class_elem.get_text(strip=True)
                 
-                rider = RiderInfo(
-                    rider_id=f"rider_{i:03d}",
+                racer = BoatRacerInfo(
+                    racer_id=f"racer_{i:03d}",
                     number=i,
                     name=name,
                     age=age,
-                    class_rank=self._parse_rider_class(class_str),
-                    racing_style=RacingStyle.SPRINTER,  # デフォルト
+                    racer_class=self._parse_racer_class(class_str),
+                    boat_racing_style=BoatRacingStyle.INNER,  # デフォルト
                     home_venue="",
-                    stats=self._get_rider_stats(f"rider_{i:03d}")
+                    racer_stats=self._get_racer_stats(f"racer_{i:03d}")
                 )
-                riders.append(rider)
+                racers.append(racer)
                 
             except Exception as e:
-                self.logger.error(f"選手情報解析エラー (車番{i}): {e}")
+                self.logger.error(f"選手情報解析エラー (艇番{i}): {e}")
                 continue
         
-        return riders
+        return racers
 
-    def get_rider_stats(self, rider_id: str) -> RiderStats:
+    def get_racer_stats(self, racer_id: str) -> BoatRacerStats:
         """選手の成績データを取得"""
-        return self._get_rider_stats(rider_id)
+        return self._get_racer_stats(racer_id)
 
-    def _get_rider_stats(self, rider_id: str) -> RiderStats:
+    def _get_racer_stats(self, racer_id: str) -> BoatRacerStats:
         """選手成績を取得（実装用のプレースホルダー）"""
         # 実際の実装では、選手の詳細ページから成績を取得
         import random
         
-        win_rate = random.uniform(0.1, 0.3)
-        place_rate = win_rate + random.uniform(0.1, 0.2)
-        show_rate = place_rate + random.uniform(0.1, 0.3)
+        win_rate = random.uniform(0.1, 0.25)
+        place_rate = win_rate + random.uniform(0.15, 0.25)
+        show_rate = place_rate + random.uniform(0.15, 0.3)
         
-        return RiderStats(
-            rider_id=rider_id,
+        return BoatRacerStats(
+            racer_id=racer_id,
             win_rate=win_rate,
             place_rate=place_rate,
             show_rate=show_rate,
-            total_races=random.randint(50, 200),
-            wins=random.randint(5, 50),
-            places=random.randint(10, 80),
-            shows=random.randint(20, 120)
+            total_races=random.randint(50, 300),
+            wins=random.randint(5, 75),
+            places=random.randint(10, 120),
+            shows=random.randint(20, 180)
         )
 
-    def _parse_grade(self, grade_str: str) -> RaceGrade:
+    def _parse_grade(self, grade_str: str) -> BoatRaceGrade:
         """グレード文字列を変換"""
         grade_map = {
-            'GP': RaceGrade.GP,
-            'G1': RaceGrade.G1,
-            'G2': RaceGrade.G2,
-            'G3': RaceGrade.G3,
-            'F1': RaceGrade.F1,
-            'F2': RaceGrade.F2
+            'SG': BoatRaceGrade.SG,
+            'G1': BoatRaceGrade.G1,
+            'G2': BoatRaceGrade.G2,
+            'G3': BoatRaceGrade.G3,
+            '一般': BoatRaceGrade.GENERAL
         }
-        return grade_map.get(grade_str, RaceGrade.F1)
+        return grade_map.get(grade_str, BoatRaceGrade.GENERAL)
 
-    def _parse_rider_class(self, class_str: str) -> RiderClass:
+    def _parse_racer_class(self, class_str: str) -> BoatRacerClass:
         """級班文字列を変換"""
         class_map = {
-            'S1': RiderClass.S1,
-            'S2': RiderClass.S2,
-            'A1': RiderClass.A1,
-            'A2': RiderClass.A2,
-            'A3': RiderClass.A3
+            'A1': BoatRacerClass.A1,
+            'A2': BoatRacerClass.A2,
+            'B1': BoatRacerClass.B1,
+            'B2': BoatRacerClass.B2
         }
-        return class_map.get(class_str, RiderClass.A1)
+        return class_map.get(class_str, BoatRacerClass.B1)
 
-    def _estimate_prize_money(self, grade: RaceGrade) -> int:
+    def _estimate_prize_money(self, grade: BoatRaceGrade) -> int:
         """グレードから賞金を推定"""
         prize_map = {
-            RaceGrade.GP: 1000,
-            RaceGrade.G1: 700,
-            RaceGrade.G2: 500,
-            RaceGrade.G3: 300,
-            RaceGrade.F1: 100,
-            RaceGrade.F2: 80
+            BoatRaceGrade.SG: 500,
+            BoatRaceGrade.G1: 350,
+            BoatRaceGrade.G2: 250,
+            BoatRaceGrade.G3: 150,
+            BoatRaceGrade.GENERAL: 100
         }
         return prize_map.get(grade, 100)
 
@@ -483,7 +493,7 @@ class KeirinDataFetcher:
         """サンプルレースデータを生成"""
         races = []
         now = datetime.now()
-        venues = ["平塚", "川崎", "小田原", "静岡"]
+        venues = ["桐生", "戸田", "江戸川", "平和島"]
         
         for i, venue in enumerate(venues):
             for race_num in range(1, 4):
@@ -495,8 +505,8 @@ class KeirinDataFetcher:
                     venue=venue,
                     race_number=race_num,
                     start_time=start_time,
-                    grade=RaceGrade.F1,
-                    prize_money=100
+                    grade=BoatRaceGrade.GENERAL,
+                    prize_money=200
                 )
                 races.append(race)
         
@@ -524,38 +534,28 @@ class KeirinDataFetcher:
             venue=venue,
             race_number=race_number,
             start_time=start_time,
-            grade=RaceGrade.F1,
-            prize_money=100
+            grade=BoatRaceGrade.GENERAL,
+            prize_money=200
         )
 
-    def _parse_lines_from_detail(self, soup: BeautifulSoup, riders: List[RiderInfo]) -> List[LineInfo]:
-        """ライン情報を解析"""
-        # 簡単なライン形成のシミュレーション
-        lines = []
-        rider_numbers = [rider.number for rider in riders]
+    def _parse_lanes_from_detail(self, soup: BeautifulSoup, racers: List[BoatRacerInfo]) -> List[BoatRaceLaneInfo]:
+        """レーン情報を解析"""
+        lanes = []
+        for i, racer in enumerate(racers, 1):
+            lane = BoatRaceLaneInfo(
+                lane_id=f"lane_{i}",
+                lane_number=i,
+                racer_number=racer.number,
+                motor_number=i,
+                boat_number=i,
+                start_timing=0.0,
+                exhibition_time=None,
+                strength=0.5,
+                strategy="普通"
+            )
+            lanes.append(lane)
         
-        # 3-3-1のライン形成を仮定
-        if len(rider_numbers) >= 7:
-            lines.append(LineInfo(
-                line_id="line_1",
-                leader_number=1,
-                members=[1, 2, 3],
-                strength=0.8
-            ))
-            lines.append(LineInfo(
-                line_id="line_2", 
-                leader_number=4,
-                members=[4, 5, 6],
-                strength=0.7
-            ))
-            lines.append(LineInfo(
-                line_id="line_3",
-                leader_number=7,
-                members=[7],
-                strength=0.6
-            ))
-        
-        return lines
+        return lanes
 
     def _parse_odds_from_detail(self, soup: BeautifulSoup) -> Optional[OddsInfo]:
         """オッズ情報を解析"""

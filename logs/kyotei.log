@@ -1,0 +1,94 @@
+2025-08-05 12:17:44,469 - prediction.predictor - INFO - 予想開始: 20241205_15_01
+2025-08-05 12:17:44,470 - prediction.predictor - INFO - 予想完了: 1位予想 7番
+2025-08-05 12:19:32,117 - __main__ - INFO - Keirin Predictor CLI v1.0.0 起動
+2025-08-05 12:19:38,102 - data.fetcher - INFO - データ取得成功: https://keirin.kdreams.jp/schedule/20250805
+2025-08-05 12:19:56,955 - __main__ - INFO - アプリケーション終了
+2025-08-05 12:56:54,225 - prediction.predictor - INFO - 予想開始: 20241205_15_01
+2025-08-05 12:56:54,226 - prediction.predictor - INFO - 予想完了: 1位予想 7番
+2025-08-05 12:57:19,520 - data.fetcher - INFO - データ取得成功: https://keirin.kdreams.jp/race-detail/20241205/平塚/01
+2025-08-05 12:57:19,526 - prediction.predictor - INFO - 予想開始: 20241205_平塚_01
+2025-08-05 12:57:19,527 - __main__ - ERROR - 予想実行エラー: list index out of range
+2025-08-05 12:57:50,789 - data.fetcher - INFO - データ取得成功: https://keirin.kdreams.jp/race-detail/20241205/平塚/01
+2025-08-05 12:57:50,794 - prediction.predictor - INFO - 予想開始: 20241205_平塚_01
+2025-08-05 12:57:50,794 - __main__ - ERROR - 予想実行エラー: list index out of range
+2025-08-05 12:58:11,873 - data.fetcher - INFO - データ取得成功: https://keirin.kdreams.jp/race-detail/20241205/平塚/01
+2025-08-05 12:58:11,878 - prediction.predictor - INFO - 予想開始: 20241205_平塚_01
+2025-08-05 12:58:11,878 - __main__ - ERROR - 予想実行エラー: list index out of range
+2025-08-05 13:04:44,532 - prediction.predictor - INFO - 予想開始: 20241205_15_01
+2025-08-05 13:04:44,534 - prediction.predictor - INFO - 予想完了: 1位予想 7番
+2025-08-05 13:12:42,474 - prediction.predictor - INFO - 予想開始: 20241205_15_01
+2025-08-05 13:12:42,475 - prediction.predictor - INFO - 予想完了: 1位予想 7番
+2025-08-05 13:13:50,756 - prediction.predictor - INFO - 予想開始: 20241205_15_01
+2025-08-05 13:13:50,756 - prediction.predictor - INFO - 予想完了: 1位予想 7番
+2025-08-05 13:15:34,755 - prediction.predictor - INFO - 予想開始: 20241205_15_01
+2025-08-05 13:15:34,757 - prediction.predictor - INFO - 予想完了: 1位予想 4番
+2025-08-05 13:21:50,114 - prediction.predictor - INFO - 予想開始: 20241205_15_01
+2025-08-05 13:21:50,115 - prediction.predictor - INFO - 予想完了: 1位予想 1番
+2025-08-05 13:38:17,177 - __main__ - INFO - Keirin Predictor CLI v1.0.0 起動
+2025-08-05 13:38:17,179 - utils.performance - INFO - パフォーマンス監視を開始しました
+2025-08-05 13:38:17,179 - __main__ - INFO - パフォーマンス監視を開始しました
+2025-08-05 13:38:18,195 - utils.cache - ERROR - キャッシュ情報取得エラー: no such column: category
+2025-08-05 13:38:22,205 - utils.performance - INFO - パフォーマンス監視を停止しました
+2025-08-05 13:38:22,205 - __main__ - INFO - パフォーマンス要約:
+⚠️ システム状態: warning
+CPU使用率: 8.3% (最大: 8.3%)
+メモリ使用量: 8918.5MB (ピーク: 8918.5MB)
+キャッシュヒット率: 0.0%
+平均応答時間: 0.0ms
+2025-08-05 13:38:49,653 - __main__ - INFO - Keirin Predictor CLI v1.0.0 起動
+2025-08-05 13:38:49,654 - utils.performance - INFO - パフォーマンス監視を開始しました
+2025-08-05 13:38:49,654 - __main__ - INFO - パフォーマンス監視を開始しました
+2025-08-05 13:38:50,663 - utils.cache - ERROR - キャッシュ情報取得エラー: no such column: category
+2025-08-05 13:38:54,675 - utils.performance - INFO - パフォーマンス監視を停止しました
+2025-08-05 13:38:54,675 - __main__ - INFO - パフォーマンス要約:
+⚠️ システム状態: warning
+CPU使用率: 10.4% (最大: 10.4%)
+メモリ使用量: 8940.2MB (ピーク: 8940.2MB)
+キャッシュヒット率: 0.0%
+平均応答時間: 0.0ms
+2025-08-05 13:39:20,382 - __main__ - INFO - Keirin Predictor CLI v1.0.0 起動
+2025-08-05 13:39:20,383 - utils.performance - INFO - パフォーマンス監視を開始しました
+2025-08-05 13:39:20,383 - __main__ - INFO - パフォーマンス監視を開始しました
+2025-08-05 13:39:21,398 - utils.cache - ERROR - キャッシュ情報取得エラー: no such column: category
+2025-08-05 13:39:25,400 - utils.performance - INFO - パフォーマンス監視を停止しました
+2025-08-05 13:39:25,400 - __main__ - INFO - パフォーマンス要約:
+⚠️ システム状態: warning
+CPU使用率: 18.4% (最大: 18.4%)
+メモリ使用量: 8915.7MB (ピーク: 8915.7MB)
+キャッシュヒット率: 0.0%
+平均応答時間: 0.0ms
+2025-08-05 13:39:35,738 - __main__ - INFO - Keirin Predictor CLI v1.0.0 起動
+2025-08-05 13:39:35,739 - utils.performance - INFO - パフォーマンス監視を開始しました
+2025-08-05 13:39:35,739 - __main__ - INFO - パフォーマンス監視を開始しました
+2025-08-05 13:39:36,751 - utils.cache - ERROR - キャッシュ情報取得エラー: no such column: category
+2025-08-05 13:39:40,758 - utils.performance - INFO - パフォーマンス監視を停止しました
+2025-08-05 13:39:40,758 - __main__ - INFO - パフォーマンス要約:
+⚠️ システム状態: warning
+CPU使用率: 7.2% (最大: 7.2%)
+メモリ使用量: 8969.2MB (ピーク: 8969.2MB)
+キャッシュヒット率: 0.0%
+平均応答時間: 0.0ms
+2025-08-05 13:41:57,789 - __main__ - INFO - Keirin Predictor CLI v1.0.0 起動
+2025-08-05 13:41:57,789 - __main__ - ERROR - エラーが発生しました: これはテスト用のエラーです
+2025-08-05 13:41:57,790 - __main__ - INFO - パフォーマンス要約:
+パフォーマンスデータが不足しています
+2025-08-05 13:44:26,501 - __main__ - INFO - Keirin Predictor CLI v1.0.0 起動
+2025-08-05 13:44:26,504 - __main__ - INFO - パフォーマンス監視を開始しました
+2025-08-05 13:44:26,519 - __main__ - ERROR - エラーが発生しました: 'cp932' codec can't encode character '\U0001f6b4' in position 22: illegal multibyte sequence
+2025-08-05 13:44:31,522 - __main__ - INFO - パフォーマンス要約:
+⚠️ システム状態: warning
+CPU使用率: 13.8% (最大: 13.8%)
+メモリ使用量: 8922.3MB (ピーク: 8922.3MB)
+キャッシュヒット率: 0.0%
+平均応答時間: 0.0ms
+2025-08-05 14:13:43,483 - __main__ - INFO - Keirin Predictor CLI v1.0.0 起動
+2025-08-05 14:13:43,484 - __main__ - INFO - パフォーマンス監視を開始しました
+2025-08-05 14:13:43,492 - __main__ - ERROR - エラーが発生しました: 'cp932' codec can't encode character '\U0001f6b4' in position 22: illegal multibyte sequence
+2025-08-05 14:13:48,504 - __main__ - INFO - パフォーマンス要約:
+🔴 システム状態: critical
+CPU使用率: 23.5% (最大: 23.5%)
+メモリ使用量: 9878.8MB (ピーク: 9878.8MB)
+キャッシュヒット率: 0.0%
+平均応答時間: 0.0ms
+2025-08-05 14:15:32,698 - __main__ - INFO - Keirin Predictor CLI v1.0.0 起動
+2025-08-05 14:15:32,700 - __main__ - INFO - パフォーマンス監視を開始しました
