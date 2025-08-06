@@ -15,10 +15,11 @@ from rich.layout import Layout
 from rich.live import Live
 
 from data.models import RaceInfo, RaceDetail, PredictionResult, BetRecommendation
-from data.fetcher import KyoteiDataFetcher
+from data.factory import create_data_fetcher, get_data_source_status
 from prediction.predictor import KyoteiPredictor
-from config.settings import APP_NAME, APP_VERSION, DISPLAY_CONFIG, LOG_CONFIG, SCRAPING_CONFIG, CACHE_DURATION, PREDICTION_WEIGHTS, PERFORMANCE_CONFIG, save_settings
-from config.config_manager import config_manager
+from config.settings import get_setting # get_settingをインポート
+from config.settings import get_setting, set_setting
+from data.venue_data import VENUES
 
 
 class KyoteiCLI:
@@ -26,7 +27,7 @@ class KyoteiCLI:
 
     def __init__(self):
         self.console = Console()
-        self.fetcher = KyoteiDataFetcher()
+        self.fetcher = create_data_fetcher()
         self.predictor = KyoteiPredictor()
         self.logger = logging.getLogger(__name__)
 
@@ -67,11 +68,12 @@ class KyoteiCLI:
     def _show_welcome(self):
         """ウェルカムメッセージ表示"""
         welcome_panel = Panel(
-            Text(f"🚤 {APP_NAME} v{APP_VERSION}", style="bold blue", justify="center"),
+            Text(f"🚤 {get_setting('APP_NAME')} v{get_setting('APP_VERSION')}", style="bold blue", justify="center"),
             subtitle="競艇予想システムへようこそ",
             style="blue"
         )
         self.console.print(welcome_panel)
+
         self.console.print()
 
     def _show_main_menu(self) -> str:
@@ -169,7 +171,7 @@ class KyoteiCLI:
         venues_table.add_column("水質", style="magenta", width=8)
         venues_table.add_column("特徴", style="blue", width=15)
         
-        from config.settings import VENUES
+        from data.venue_data import VENUES
         venue_list = list(VENUES.items())[:10]  # 表示を10件に制限
         
         for i, (venue_name, info) in enumerate(venue_list, 1):
@@ -376,7 +378,6 @@ class KyoteiCLI:
 
     def _show_system_settings(self):
         """システム設定表示"""
-        from config.settings import PREDICTION_WEIGHTS, SCRAPING_CONFIG, CACHE_DURATION, LOG_CONFIG, DISPLAY_CONFIG, PERFORMANCE_CONFIG
         
         # 予想アルゴリズム設定
         weights_table = Table(title="🎯 予想アルゴリズム重み設定")
@@ -384,20 +385,22 @@ class KyoteiCLI:
         weights_table.add_column("重み", style="yellow")
         weights_table.add_column("説明", style="white")
         
-        weights_table.add_row("選手能力", f"{PREDICTION_WEIGHTS['racer_ability']:.1%}", "級班・勝率・年齢")
-        weights_table.add_row("近況フォーム", f"{PREDICTION_WEIGHTS['recent_form']:.1%}", "直近成績・トレンド")
-        weights_table.add_row("水面相性", f"{PREDICTION_WEIGHTS['track_compatibility']:.1%}", "競艇場での成績")
-        weights_table.add_row("レーン戦略", f"{PREDICTION_WEIGHTS['lane_strategy']:.1%}", "コース位置・スタート")
-        weights_table.add_row("外部要因", f"{PREDICTION_WEIGHTS['external_factors']:.1%}", "天候・オッズ・風")
+        prediction_weights = get_setting("PREDICTION_WEIGHTS")
+        weights_table.add_row("選手能力", f"{prediction_weights['racer_ability']:.1%}", "級班・勝率・年齢")
+        weights_table.add_row("近況フォーム", f"{prediction_weights['recent_form']:.1%}", "直近成績・トレンド")
+        weights_table.add_row("水面相性", f"{prediction_weights['track_compatibility']:.1%}", "競艇場での成績")
+        weights_table.add_row("レーン戦略", f"{prediction_weights['lane_strategy']:.1%}", "コース位置・スタート")
+        weights_table.add_row("外部要因", f"{prediction_weights['external_factors']:.1%}", "天候・オッズ・風")
         
         self.console.print(weights_table)
         self.console.print()
         
         # スクレイピング設定
+        scraping_config = get_setting("SCRAPING_CONFIG")
         scraping_panel = Panel(
-            f"⏱️  レート制限: {SCRAPING_CONFIG['rate_limit']}秒間隔\n"
-            f"⏰ タイムアウト: {SCRAPING_CONFIG['timeout']}秒\n"
-            f"🔄 最大リトライ: {SCRAPING_CONFIG['max_retries']}回",
+            f"⏱️  レート制限: {scraping_config['rate_limit']}秒間隔\n"
+            f"⏰ タイムアウト: {scraping_config['timeout']}秒\n"
+            f"🔄 最大リトライ: {scraping_config['max_retries']}回",
             title="🌐 データ取得設定",
             border_style="blue"
         )
@@ -405,21 +408,23 @@ class KyoteiCLI:
         self.console.print()
 
         # キャッシュ設定
+        cache_duration = get_setting("CACHE_DURATION")
         cache_duration_table = Table(title="⏱️ キャッシュ期間設定 (分)")
         cache_duration_table.add_column("項目", style="cyan")
         cache_duration_table.add_column("期間", style="yellow")
-        for key, value in CACHE_DURATION.items():
+        for key, value in cache_duration.items():
             cache_duration_table.add_row(key, str(value))
         self.console.print(cache_duration_table)
         self.console.print()
 
         # ログ設定
+        log_config = get_setting("LOG_CONFIG")
         log_config_panel = Panel(
-            f"レベル: {LOG_CONFIG['level']}\n"
-            f"ファイルサイズ: {LOG_CONFIG['file_size'] / (1024 * 1024):.0f}MB\n"
-            f"バックアップ数: {LOG_CONFIG['backup_count']}\n"
-            f"エラーログファイル: {LOG_CONFIG['error_log_file']}\n"
-            f"デバッグモード: {LOG_CONFIG['debug_mode']}",
+            f"レベル: {log_config['level']}\n"
+            f"ファイルサイズ: {log_config['file_size'] / (1024 * 1024):.0f}MB\n"
+            f"バックアップ数: {log_config['backup_count']}\n"
+            f"エラーログファイル: {log_config['error_log_file']}\n"
+            f"デバッグモード: {log_config['debug_mode']}",
             title="📝 ログ設定",
             border_style="magenta"
         )
@@ -427,14 +432,15 @@ class KyoteiCLI:
         self.console.print()
 
         # パフォーマンス監視設定
+        performance_config = get_setting("PERFORMANCE_CONFIG")
         performance_config_panel = Panel(
-            f"監視間隔: {PERFORMANCE_CONFIG['monitor_interval']}秒\n"
-            f"CPU警告閾値: {PERFORMANCE_CONFIG['cpu_warning_threshold']}%\n"
-            f"CPU危険閾値: {PERFORMANCE_CONFIG['cpu_critical_threshold']}%\n"
-            f"メモリ警告閾値: {PERFORMANCE_CONFIG['memory_warning_threshold_mb']}MB\n"
-            f"メモリ危険閾値: {PERFORMANCE_CONFIG['memory_critical_threshold_mb']}MB\n"
-            f"キャッシュヒット率警告閾値: {PERFORMANCE_CONFIG['cache_hit_rate_warning_threshold']}\n"
-            f"キャッシュヒット率危険閾値: {PERFORMANCE_CONFIG['cache_hit_rate_critical_threshold']}",
+            f"監視間隔: {performance_config['monitor_interval']}秒\n"
+            f"CPU警告閾値: {performance_config['cpu_warning_threshold']}%\n"
+            f"CPU危険閾値: {performance_config['cpu_critical_threshold']}%\n"
+            f"メモリ警告閾値: {performance_config['memory_warning_threshold_mb']}MB\n"
+            f"メモリ危険閾値: {performance_config['memory_critical_threshold_mb']}MB\n"
+            f"キャッシュヒット率警告閾値: {performance_config['cache_hit_rate_warning_threshold']}\n"
+            f"キャッシュヒット率危険閾値: {performance_config['cache_hit_rate_critical_threshold']}",
             title="📊 パフォーマンス監視設定",
             border_style="green"
         )
@@ -442,11 +448,12 @@ class KyoteiCLI:
         self.console.print()
 
         # 表示設定
+        display_config = get_setting("DISPLAY_CONFIG")
         display_config_panel = Panel(
-            f"最大レース表示数: {DISPLAY_CONFIG['max_races_per_page']}\n"
-            f"推奨レベル: {', '.join(DISPLAY_CONFIG['recommendation_levels'])}\n"
-            f"スター評価: {DISPLAY_CONFIG['star_ratings']}\n"
-            f"色分け: {DISPLAY_CONFIG['color_coding']}",
+            f"最大レース表示数: {display_config['max_races_per_page']}\n"
+            f"推奨レベル: {', '.join(display_config['recommendation_levels'])}\n"
+            f"スター評価: {display_config['star_ratings']}\n"
+            f"色分け: {display_config['color_coding']}",
             title="🖥️ 表示設定",
             border_style="cyan"
         )
@@ -455,14 +462,13 @@ class KyoteiCLI:
 
     def _show_data_source_status(self):
         """データソース状態表示"""
-        from config.settings import DATA_SOURCES
         
         source_table = Table(title="🌐 データソース状態")
         source_table.add_column("ソース", style="cyan")
         source_table.add_column("URL", style="yellow")
         source_table.add_column("状態", style="green")
         
-        for name, url in DATA_SOURCES.items():
+        for name, url in get_setting("DATA_SOURCES").items():
             status = "🟢 設定済み" if url else "🔴 未設定"
             source_table.add_row(name, url, status)
         
@@ -484,6 +490,7 @@ class KyoteiCLI:
             edit_menu.add_row("4.", "🎯 予想アルゴリズム重み", "予想ロジックの重み設定")
             edit_menu.add_row("5.", "🖥️ 表示設定", "CLIの表示に関する設定")
             edit_menu.add_row("6.", "📊 パフォーマンス監視設定", "システムパフォーマンス監視に関する設定")
+            edit_menu.add_row("7.", "🔄 データモード設定", "実データ/モックデータの切り替え")
             edit_menu.add_row("0.", "⬅️  設定・管理メニューに戻る", "")
 
             edit_panel = Panel(
@@ -495,8 +502,8 @@ class KyoteiCLI:
             self.console.print()
 
             choice = Prompt.ask(
-                "[bold yellow]編集する設定カテゴリを選択してください (0-6)[/bold yellow]",
-                choices=["0", "1", "2", "3", "4", "5", "6"],
+                "[bold yellow]編集する設定カテゴリを選択してください (0-7)[/bold yellow]",
+                choices=["0", "1", "2", "3", "4", "5", "6", "7"],
                 default="0"
             )
 
@@ -514,22 +521,27 @@ class KyoteiCLI:
                 self._edit_display_settings()
             elif choice == "6":
                 self._edit_performance_settings()
+            elif choice == "7":
+                self._edit_data_mode_settings()
 
     def _edit_log_settings(self):
         """ログ設定を編集する"""
         self.console.clear()
         self.console.print(Panel("📝 [bold]ログ設定編集[/bold]", border_style="magenta"))
-        self.console.print(f"現在のログレベル: [cyan]{LOG_CONFIG['level']}[/cyan]")
+        
+        log_config = get_setting("LOG_CONFIG")
+
+        self.console.print(f"現在のログレベル: [cyan]{log_config['level']}[/cyan]")
         new_level = Prompt.ask("新しいログレベルを入力してください (DEBUG, INFO, WARNING, ERROR, CRITICAL)",
                                 choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
-                                default=LOG_CONFIG['level'])
-        LOG_CONFIG['level'] = new_level
+                                default=log_config['level'])
+        log_config['level'] = new_level
         
-        self.console.print(f"現在のデバッグモード: [cyan]{LOG_CONFIG['debug_mode']}[/cyan]")
+        self.console.print(f"現在のデバッグモード: [cyan]{log_config['debug_mode']}[/cyan]")
         new_debug_mode = Confirm.ask("デバッグモードを有効にしますか？")
-        LOG_CONFIG['debug_mode'] = new_debug_mode
+        log_config['debug_mode'] = new_debug_mode
 
-        save_settings()
+        set_setting("LOG_CONFIG", log_config)
         self.console.print("[green]ログ設定を更新しました。[/green]")
         Prompt.ask("[dim]Enterキーで続行[/dim]", default="")
 
@@ -538,31 +550,33 @@ class KyoteiCLI:
         self.console.clear()
         self.console.print(Panel("🌐 [bold]スクレイピング設定編集[/bold]", border_style="blue"))
 
-        self.console.print(f"現在のレート制限: [cyan]{SCRAPING_CONFIG['rate_limit']}[/cyan]秒")
-        new_rate_limit = Prompt.ask("新しいレート制限 (秒) を入力してください", default=str(SCRAPING_CONFIG['rate_limit']), show_default=True)
+        scraping_config = get_setting("SCRAPING_CONFIG")
+
+        self.console.print(f"現在のレート制限: [cyan]{scraping_config['rate_limit']}[/cyan]秒")
+        new_rate_limit = Prompt.ask("新しいレート制限 (秒) を入力してください", default=str(scraping_config['rate_limit']), show_default=True)
         try:
-            SCRAPING_CONFIG['rate_limit'] = float(new_rate_limit)
+            scraping_config['rate_limit'] = float(new_rate_limit)
         except ValueError:
             self.console.print("[red]無効な入力です。数値で入力してください。[/red]")
             return
 
-        self.console.print(f"現在のタイムアウト: [cyan]{SCRAPING_CONFIG['timeout']}[/cyan]秒")
-        new_timeout = Prompt.ask("新しいタイムアウト (秒) を入力してください", default=str(SCRAPING_CONFIG['timeout']), show_default=True)
+        self.console.print(f"現在のタイムアウト: [cyan]{scraping_config['timeout']}[/cyan]秒")
+        new_timeout = Prompt.ask("新しいタイムアウト (秒) を入力してください", default=str(scraping_config['timeout']), show_default=True)
         try:
-            SCRAPING_CONFIG['timeout'] = int(new_timeout)
+            scraping_config['timeout'] = int(new_timeout)
         except ValueError:
             self.console.print("[red]無効な入力です。整数で入力してください。[/red]")
             return
 
-        self.console.print(f"現在の最大リトライ数: [cyan]{SCRAPING_CONFIG['max_retries']}[/cyan]回")
-        new_max_retries = Prompt.ask("新しい最大リトライ数を入力してください", default=str(SCRAPING_CONFIG['max_retries']), show_default=True)
+        self.console.print(f"現在の最大リトライ数: [cyan]{scraping_config['max_retries']}[/cyan]回")
+        new_max_retries = Prompt.ask("新しい最大リトライ数を入力してください", default=str(scraping_config['max_retries']), show_default=True)
         try:
-            SCRAPING_CONFIG['max_retries'] = int(new_max_retries)
+            scraping_config['max_retries'] = int(new_max_retries)
         except ValueError:
             self.console.print("[red]無効な入力です。整数で入力してください。[/red]")
             return
 
-        save_settings()
+        set_setting("SCRAPING_CONFIG", scraping_config)
         self.console.print("[green]スクレイピング設定を更新しました。[/green]")
         Prompt.ask("[dim]Enterキーで続行[/dim]", default="")
 
@@ -571,16 +585,17 @@ class KyoteiCLI:
         self.console.clear()
         self.console.print(Panel("⏱️ [bold]キャッシュ期間設定編集[/bold]", border_style="yellow"))
 
-        for key, value in CACHE_DURATION.items():
+        cache_duration = get_setting("CACHE_DURATION")
+        for key, value in cache_duration.items():
             self.console.print(f"現在の {key}: [cyan]{value}[/cyan]分")
             new_value = Prompt.ask(f"新しい {key} (分) を入力してください", default=str(value), show_default=True)
             try:
-                CACHE_DURATION[key] = int(new_value)
+                cache_duration[key] = int(new_value)
             except ValueError:
                 self.console.print("[red]無効な入力です。整数で入力してください。[/red]")
                 return
 
-        save_settings()
+        set_setting("CACHE_DURATION", cache_duration)
         self.console.print("[green]キャッシュ期間設定を更新しました。[/green]")
         Prompt.ask("[dim]Enterキーで続行[/dim]", default="")
 
@@ -589,7 +604,8 @@ class KyoteiCLI:
         self.console.clear()
         self.console.print(Panel("🎯 [bold]予想アルゴリズム重み編集[/bold]", border_style="red"))
 
-        temp_weights = PREDICTION_WEIGHTS.copy()
+        prediction_weights = get_setting("PREDICTION_WEIGHTS")
+        temp_weights = prediction_weights.copy()
         for key, value in temp_weights.items():
             self.console.print(f"現在の {key}: [cyan]{value:.2f}[/cyan]")
             new_value = Prompt.ask(f"新しい {key} の重みを入力してください (0.0-1.0)", default=f"{value:.2f}", show_default=True)
@@ -611,8 +627,7 @@ class KyoteiCLI:
             Prompt.ask("[dim]Enterキーで続行[/dim]", default="")
             return
 
-        PREDICTION_WEIGHTS.update(temp_weights)
-        save_settings()
+        set_setting("PREDICTION_WEIGHTS", temp_weights)
         self.console.print("[green]予想アルゴリズム重み設定を更新しました。[/green]")
         Prompt.ask("[dim]Enterキーで続行[/dim]", default="")
 
@@ -621,23 +636,25 @@ class KyoteiCLI:
         self.console.clear()
         self.console.print(Panel("🖥️ [bold]表示設定編集[/bold]", border_style="cyan"))
 
-        self.console.print(f"現在の最大レース表示数: [cyan]{DISPLAY_CONFIG['max_races_per_page']}[/cyan]")
-        new_max_races = Prompt.ask("新しい最大レース表示数を入力してください", default=str(DISPLAY_CONFIG['max_races_per_page']), show_default=True)
+        display_config = get_setting("DISPLAY_CONFIG")
+
+        self.console.print(f"現在の最大レース表示数: [cyan]{display_config['max_races_per_page']}[/cyan]")
+        new_max_races = Prompt.ask("新しい最大レース表示数を入力してください", default=str(display_config['max_races_per_page']), show_default=True)
         try:
-            DISPLAY_CONFIG['max_races_per_page'] = int(new_max_races)
+            display_config['max_races_per_page'] = int(new_max_races)
         except ValueError:
             self.console.print("[red]無効な入力です。整数で入力してください。[/red]")
             return
 
-        self.console.print(f"現在のスター評価表示: [cyan]{DISPLAY_CONFIG['star_ratings']}[/cyan]")
+        self.console.print(f"現在のスター評価表示: [cyan]{display_config['star_ratings']}[/cyan]")
         new_star_ratings = Confirm.ask("スター評価を有効にしますか？")
-        DISPLAY_CONFIG['star_ratings'] = new_star_ratings
+        display_config['star_ratings'] = new_star_ratings
 
-        self.console.print(f"現在の色分け表示: [cyan]{DISPLAY_CONFIG['color_coding']}[/cyan]")
+        self.console.print(f"現在の色分け表示: [cyan]{display_config['color_coding']}[/cyan]")
         new_color_coding = Confirm.ask("色分け表示を有効にしますか？")
-        DISPLAY_CONFIG['color_coding'] = new_color_coding
+        display_config['color_coding'] = new_color_coding
 
-        save_settings()
+        set_setting("DISPLAY_CONFIG", display_config)
         self.console.print("[green]表示設定を更新しました。[/green]")
         Prompt.ask("[dim]Enterキーで続行[/dim]", default="")
 
@@ -646,58 +663,60 @@ class KyoteiCLI:
         self.console.clear()
         self.console.print(Panel("📊 [bold]パフォーマンス監視設定編集[/bold]", border_style="green"))
 
+        performance_config = get_setting("PERFORMANCE_CONFIG")
+
         # 監視間隔
-        self.console.print(f"現在の監視間隔: [cyan]{PERFORMANCE_CONFIG['monitor_interval']}[/cyan]秒")
-        new_interval = Prompt.ask("新しい監視間隔 (秒) を入力してください", default=str(PERFORMANCE_CONFIG['monitor_interval']), show_default=True)
+        self.console.print(f"現在の監視間隔: [cyan]{performance_config['monitor_interval']}[/cyan]秒")
+        new_interval = Prompt.ask("新しい監視間隔 (秒) を入力してください", default=str(performance_config['monitor_interval']), show_default=True)
         try:
-            PERFORMANCE_CONFIG['monitor_interval'] = int(new_interval)
+            performance_config['monitor_interval'] = int(new_interval)
         except ValueError:
             self.console.print("[red]無効な入力です。整数で入力してください。[/red]")
             return
 
         # CPU警告閾値
-        self.console.print(f"現在のCPU警告閾値: [cyan]{PERFORMANCE_CONFIG['cpu_warning_threshold']}[/cyan]%")
-        new_cpu_warning = Prompt.ask("新しいCPU警告閾値 (%) を入力してください", default=str(PERFORMANCE_CONFIG['cpu_warning_threshold']), show_default=True)
+        self.console.print(f"現在のCPU警告閾値: [cyan]{performance_config['cpu_warning_threshold']}[/cyan]%")
+        new_cpu_warning = Prompt.ask("新しいCPU警告閾値 (%) を入力してください", default=str(performance_config['cpu_warning_threshold']), show_default=True)
         try:
-            PERFORMANCE_CONFIG['cpu_warning_threshold'] = int(new_cpu_warning)
+            performance_config['cpu_warning_threshold'] = int(new_cpu_warning)
         except ValueError:
             self.console.print("[red]無効な入力です。整数で入力してください。[/red]")
             return
 
         # CPU危険閾値
-        self.console.print(f"現在のCPU危険閾値: [cyan]{PERFORMANCE_CONFIG['cpu_critical_threshold']}[/cyan]%")
-        new_cpu_critical = Prompt.ask("新しいCPU危険閾値 (%) を入力してください", default=str(PERFORMANCE_CONFIG['cpu_critical_threshold']), show_default=True)
+        self.console.print(f"現在のCPU危険閾値: [cyan]{performance_config['cpu_critical_threshold']}[/cyan]%")
+        new_cpu_critical = Prompt.ask("新しいCPU危険閾値 (%) を入力してください", default=str(performance_config['cpu_critical_threshold']), show_default=True)
         try:
-            PERFORMANCE_CONFIG['cpu_critical_threshold'] = int(new_cpu_critical)
+            performance_config['cpu_critical_threshold'] = int(new_cpu_critical)
         except ValueError:
             self.console.print("[red]無効な入力です。整数で入力してください。[/red]")
             return
 
         # メモリ警告閾値
-        self.console.print(f"現在のメモリ警告閾値: [cyan]{PERFORMANCE_CONFIG['memory_warning_threshold_mb']}[/cyan]MB")
-        new_mem_warning = Prompt.ask("新しいメモリ警告閾値 (MB) を入力してください", default=str(PERFORMANCE_CONFIG['memory_warning_threshold_mb']), show_default=True)
+        self.console.print(f"現在のメモリ警告閾値: [cyan]{performance_config['memory_warning_threshold_mb']}[/cyan]MB")
+        new_mem_warning = Prompt.ask("新しいメモリ警告閾値 (MB) を入力してください", default=str(performance_config['memory_warning_threshold_mb']), show_default=True)
         try:
-            PERFORMANCE_CONFIG['memory_warning_threshold_mb'] = int(new_mem_warning)
+            performance_config['memory_warning_threshold_mb'] = int(new_mem_warning)
         except ValueError:
             self.console.print("[red]無効な入力です。整数で入力してください。[/red]")
             return
 
         # メモリ危険閾値
-        self.console.print(f"現在のメモリ危険閾値: [cyan]{PERFORMANCE_CONFIG['memory_critical_threshold_mb']}[/cyan]MB")
-        new_mem_critical = Prompt.ask("新しいメモリ危険閾値 (MB) を入力してください", default=str(PERFORMANCE_CONFIG['memory_critical_threshold_mb']), show_default=True)
+        self.console.print(f"現在のメモリ危険閾値: [cyan]{performance_config['memory_critical_threshold_mb']}[/cyan]MB")
+        new_mem_critical = Prompt.ask("新しいメモリ危険閾値 (MB) を入力してください", default=str(performance_config['memory_critical_threshold_mb']), show_default=True)
         try:
-            PERFORMANCE_CONFIG['memory_critical_threshold_mb'] = int(new_mem_critical)
+            performance_config['memory_critical_threshold_mb'] = int(new_mem_critical)
         except ValueError:
             self.console.print("[red]無効な入力です。整数で入力してください。[/red]")
             return
 
         # キャッシュヒット率警告閾値
-        self.console.print(f"現在のキャッシュヒット率警告閾値: [cyan]{PERFORMANCE_CONFIG['cache_hit_rate_warning_threshold']}[/cyan]")
-        new_cache_warning = Prompt.ask("新しいキャッシュヒット率警告閾値 (0.0-1.0) を入力してください", default=str(PERFORMANCE_CONFIG['cache_hit_rate_warning_threshold']), show_default=True)
+        self.console.print(f"現在のキャッシュヒット率警告閾値: [cyan]{performance_config['cache_hit_rate_warning_threshold']}[/cyan]")
+        new_cache_warning = Prompt.ask("新しいキャッシュヒット率警告閾値 (0.0-1.0) を入力してください", default=str(performance_config['cache_hit_rate_warning_threshold']), show_default=True)
         try:
             float_value = float(new_cache_warning)
             if 0.0 <= float_value <= 1.0:
-                PERFORMANCE_CONFIG['cache_hit_rate_warning_threshold'] = float_value
+                performance_config['cache_hit_rate_warning_threshold'] = float_value
             else:
                 self.console.print("[red]無効な入力です。0.0から1.0の範囲で入力してください。[/red]")
                 return
@@ -706,12 +725,12 @@ class KyoteiCLI:
             return
 
         # キャッシュヒット率危険閾値
-        self.console.print(f"現在のキャッシュヒット率危険閾値: [cyan]{PERFORMANCE_CONFIG['cache_hit_rate_critical_threshold']}[/cyan]")
-        new_cache_critical = Prompt.ask("新しいキャッシュヒット率危険閾値 (0.0-1.0) を入力してください", default=str(PERFORMANCE_CONFIG['cache_hit_rate_critical_threshold']), show_default=True)
+        self.console.print(f"現在のキャッシュヒット率危険閾値: [cyan]{performance_config['cache_hit_rate_critical_threshold']}[/cyan]")
+        new_cache_critical = Prompt.ask("新しいキャッシュヒット率危険閾値 (0.0-1.0) を入力してください", default=str(performance_config['cache_hit_rate_critical_threshold']), show_default=True)
         try:
             float_value = float(new_cache_critical)
             if 0.0 <= float_value <= 1.0:
-                PERFORMANCE_CONFIG['cache_hit_rate_critical_threshold'] = float_value
+                performance_config['cache_hit_rate_critical_threshold'] = float_value
             else:
                 self.console.print("[red]無効な入力です。0.0から1.0の範囲で入力してください。[/red]")
                 return
@@ -719,12 +738,15 @@ class KyoteiCLI:
             self.console.print("[red]無効な入力です。数値で入力してください。[/red]")
             return
 
-        save_settings()
+        set_setting("PERFORMANCE_CONFIG", performance_config)
         self.console.print("[green]パフォーマンス監視設定を更新しました。[/green]")
         Prompt.ask("[dim]Enterキーで続行[/dim]", default="")
 
     def _show_race_list(self, races: List[RaceInfo], title: str):
         """レース一覧をテーブル表示"""
+        # 発走時刻でソート
+        sorted_races = sorted(races, key=lambda r: r.start_time)
+
         table = Table(title=f"📋 {title}")
         table.add_column("No.", style="cyan", width=4)
         table.add_column("開催場", style="yellow", width=8)
@@ -734,7 +756,7 @@ class KyoteiCLI:
         table.add_column("賞金", style="red", width=8)
         table.add_column("状態", style="blue", width=8)
         
-        for i, race in enumerate(races[:DISPLAY_CONFIG['max_races_per_page']], 1):
+        for i, race in enumerate(sorted_races[:get_setting('DISPLAY_CONFIG')['max_races_per_page']], 1):
             # グレードによる色分け
             grade_color = self._get_grade_color(race.grade.value)
             
@@ -920,7 +942,7 @@ class KyoteiCLI:
         
         settings_table.add_row("予想アルゴリズム", "総合型", "選手能力重視 / 近況重視 / 総合型")
         settings_table.add_row("データ更新間隔", "30分", "自動データ更新の間隔")
-        settings_table.add_row("表示レース数", f"{DISPLAY_CONFIG['max_races_per_page']}件", "一覧で表示する最大レース数")
+        settings_table.add_row("表示レース数", f"{get_setting('DISPLAY_CONFIG')['max_races_per_page']}件", "一覧で表示する最大レース数")
         settings_table.add_row("推奨度表示", "★5段階", "★5段階 / S-D評価 / 数値")
         
         self.console.print(settings_table)
@@ -990,3 +1012,153 @@ class KyoteiCLI:
             "D": "dim white"
         }
         return color_map.get(grade, "white")
+
+    def _edit_data_mode_settings(self):
+        """データモード設定を編集する"""
+        self.console.clear()
+        self.console.print(Panel("🔄 [bold]データモード設定編集[/bold]", border_style="magenta"))
+        
+        data_mode = get_setting("DATA_MODE")
+        
+        # 現在の設定を表示
+        current_table = Table(title="現在の設定")
+        current_table.add_column("設定項目", style="cyan")
+        current_table.add_column("現在値", style="yellow")
+        current_table.add_column("説明", style="dim")
+        
+        current_table.add_row(
+            "実データ使用",
+            "ON" if data_mode.get("use_real_data", False) else "OFF",
+            "実データ/モックデータの選択"
+        )
+        current_table.add_row(
+            "フォールバック",
+            "ON" if data_mode.get("fallback_to_mock", True) else "OFF",
+            "実データ失敗時のモック使用"
+        )
+        current_table.add_row(
+            "エラー時モック",
+            "ON" if data_mode.get("mock_on_error", True) else "OFF",
+            "エラー時にモックで継続"
+        )
+        current_table.add_row(
+            "データソース表示",
+            "ON" if data_mode.get("show_data_source", True) else "OFF",
+            "ユーザーにデータソースを表示"
+        )
+        
+        self.console.print(current_table)
+        self.console.print()
+        
+        # 設定編集メニュー
+        while True:
+            data_menu = Table(show_header=False, box=None, expand=False)
+            data_menu.add_column(style="cyan", width=3)
+            data_menu.add_column(style="white", width=25)
+            data_menu.add_column(style="dim", width=35)
+            
+            data_menu.add_row("1.", "実データ使用の切り替え", "実データ/モックデータの選択")
+            data_menu.add_row("2.", "フォールバック設定", "実データ取得失敗時の処理")
+            data_menu.add_row("3.", "エラー時処理設定", "エラー発生時の処理方法")
+            data_menu.add_row("4.", "データソース表示設定", "ユーザーへの表示設定")
+            data_menu.add_row("5.", "設定をデフォルトに戻す", "全設定を初期値に戻す")
+            data_menu.add_row("0.", "⬅️  戻る", "")
+            
+            data_panel = Panel(
+                data_menu,
+                title="🔄 データモード設定",
+                border_style="blue"
+            )
+            self.console.print(data_panel)
+            
+            choice = Prompt.ask(
+                "[bold blue]設定する項目を選択してください (0-5)[/bold blue]",
+                choices=["0", "1", "2", "3", "4", "5"],
+                default="0"
+            )
+            
+            if choice == "0":
+                break
+            elif choice == "1":
+                current_value = data_mode.get("use_real_data", False)
+                new_value = Confirm.ask(
+                    f"実データを使用しますか？ (現在: {'ON' if current_value else 'OFF'})",
+                    default=current_value
+                )
+                data_mode["use_real_data"] = new_value
+                set_setting("DATA_MODE", data_mode)
+                self.console.print(f"[green]実データ使用を {'ON' if new_value else 'OFF'} に設定しました[/green]")
+                
+            elif choice == "2":
+                current_value = data_mode.get("fallback_to_mock", True)
+                new_value = Confirm.ask(
+                    f"実データ取得失敗時にモックを使用しますか？ (現在: {'ON' if current_value else 'OFF'})",
+                    default=current_value
+                )
+                data_mode["fallback_to_mock"] = new_value
+                set_setting("DATA_MODE", data_mode)
+                self.console.print(f"[green]フォールバック設定を {'ON' if new_value else 'OFF'} に設定しました[/green]")
+                
+            elif choice == "3":
+                current_value = data_mode.get("mock_on_error", True)
+                new_value = Confirm.ask(
+                    f"エラー時にモックデータで継続しますか？ (現在: {'ON' if current_value else 'OFF'})",
+                    default=current_value
+                )
+                data_mode["mock_on_error"] = new_value
+                set_setting("DATA_MODE", data_mode)
+                self.console.print(f"[green]エラー時処理を {'ON' if new_value else 'OFF'} に設定しました[/green]")
+                
+            elif choice == "4":
+                current_value = data_mode.get("show_data_source", True)
+                new_value = Confirm.ask(
+                    f"データソースをユーザーに表示しますか？ (現在: {'ON' if current_value else 'OFF'})",
+                    default=current_value
+                )
+                data_mode["show_data_source"] = new_value
+                set_setting("DATA_MODE", data_mode)
+                self.console.print(f"[green]データソース表示を {'ON' if new_value else 'OFF'} に設定しました[/green]")
+                
+            elif choice == "5":
+                if Confirm.ask("すべての設定をデフォルトに戻しますか？"):
+                    default_data_mode = {
+                        "use_real_data": False,
+                        "fallback_to_mock": True,
+                        "mock_on_error": True,
+                        "show_data_source": True
+                    }
+                    set_setting("DATA_MODE", default_data_mode)
+                    self.console.print("[green]すべての設定をデフォルトに戻しました[/green]")
+                    data_mode = default_data_mode
+                    
+            # 設定更新後に現在の設定を再表示
+            if choice in ["1", "2", "3", "4", "5"]:
+                self.console.print()
+                current_table = Table(title="更新後の設定")
+                current_table.add_column("設定項目", style="cyan")
+                current_table.add_column("現在値", style="yellow")
+                current_table.add_column("説明", style="dim")
+                
+                current_table.add_row(
+                    "実データ使用",
+                    "ON" if data_mode.get("use_real_data", False) else "OFF",
+                    "実データ/モックデータの選択"
+                )
+                current_table.add_row(
+                    "フォールバック",
+                    "ON" if data_mode.get("fallback_to_mock", True) else "OFF",
+                    "実データ失敗時のモック使用"
+                )
+                current_table.add_row(
+                    "エラー時モック",
+                    "ON" if data_mode.get("mock_on_error", True) else "OFF",
+                    "エラー時にモックで継続"
+                )
+                current_table.add_row(
+                    "データソース表示",
+                    "ON" if data_mode.get("show_data_source", True) else "OFF",
+                    "ユーザーにデータソースを表示"
+                )
+                
+                self.console.print(current_table)
+                Prompt.ask("[dim]Enterキーで続行[/dim]", default="")
