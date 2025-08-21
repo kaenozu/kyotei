@@ -1,0 +1,52 @@
+# Git関連
+.git
+.gitignore
+
+# Python関連
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+env
+venv
+.venv
+pip-log.txt
+pip-delete-this-directory.txt
+.tox
+.coverage
+.coverage.*
+.pytest_cache
+.mypy_cache
+
+# IDE関連
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS関連
+.DS_Store
+Thumbs.db
+
+# プロジェクト固有
+cache/*.json
+*.log
+htmlcov/
+dist/
+build/
+*.egg-info
+
+# テスト関連
+test_*.py
+*_test.py
+tests/
+
+# ドキュメント関連
+*.md
+!README_OPENAPI.md
+
+# 一時ファイル
+*.tmp
+*.temp

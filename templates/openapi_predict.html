@@ -5,19 +5,40 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BoatraceOpenAPI - レース予想</title>
     <style>
+        :root {
+            --bg-color: #f5f5f5;
+            --container-bg: white;
+            --text-color: #333;
+            --header-color: #007bff;
+            --border-color: #e0e0e0;
+            --shadow: rgba(0,0,0,0.1);
+        }
+        
+        [data-theme="dark"] {
+            --bg-color: #1a1a1a;
+            --container-bg: #2d2d2d;
+            --text-color: #ffffff;
+            --header-color: #4dabf7;
+            --border-color: #404040;
+            --shadow: rgba(0,0,0,0.3);
+        }
+        
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 0;
             padding: 20px;
-            background-color: #f5f5f5;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            transition: background-color 0.3s ease, color 0.3s ease;
         }
         .container {
             max-width: 1000px;
             margin: 0 auto;
-            background-color: white;
+            background-color: var(--container-bg);
             border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 10px var(--shadow);
             padding: 30px;
+            transition: all 0.3s ease;
         }
         .header {
             text-align: center;
@@ -293,9 +314,25 @@
                         <div class="stat-value">{{ racer.win_rate | round(1) }}%</div>
                     </div>
                     <div class="stat-item">
-                        <div class="stat-label">予想勝率</div>
-                        <div class="stat-value">{{ (racer.prediction * 100) | round(1) }}%</div>
+                        <div class="stat-label">当地勝率</div>
+                        <div class="stat-value">{{ racer.local_win_rate | round(1) }}%</div>
                     </div>
+                    <div class="stat-item">
+                        <div class="stat-label">連対率</div>
+                        <div class="stat-value">{{ racer.place_rate | round(1) }}%</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">平均ST</div>
+                        <div class="stat-value">{{ racer.average_st | round(3) }}</div>
+                    </div>
+                </div>
+                
+                <div class="analysis-details" style="margin-top: 10px; font-size: 0.85em; color: #666;">
+                    <div><strong>AI分析:</strong></div>
+                    <div>基本実力: {{ (racer.analysis.base_strength * 100) | round(1) }}%</div>
+                    <div>当地適性: {{ (racer.analysis.local_adaptation * 100) | round(1) }}%</div>
+                    <div>艇番有利: {{ (racer.analysis.lane_advantage * 100) | round(1) }}%</div>
+                    <div>ST補正: ×{{ racer.analysis.st_factor | round(2) }}</div>
                 </div>
                 
                 <div class="prediction-bar">
@@ -340,6 +377,14 @@
     </div>
 
     <script>
+        // ページ読み込み時にテーマを復元
+        document.addEventListener('DOMContentLoaded', function() {
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme === 'dark') {
+                document.body.setAttribute('data-theme', 'dark');
+            }
+        });
+        
         // アニメーション効果
         document.addEventListener('DOMContentLoaded', function() {
             const predictionBars = document.querySelectorAll('.prediction-fill');

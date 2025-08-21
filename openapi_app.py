@@ -10,6 +10,9 @@ import requests
 import json
 import os
 import time
+import asyncio
+import aiohttp
+from concurrent.futures import ThreadPoolExecutor
 from typing import List, Optional, Dict, Any
 
 # ログ設定
@@ -31,8 +34,10 @@ class SimpleOpenAPIFetcher:
     
     def __init__(self):
         self.base_url = "https://boatraceopenapi.github.io/programs/v2"
-        self.cache_file = "cache/openapi_cache.json"
+        self.cache_file = "cache/boatrace_openapi_cache.json"  # 統合されたキャッシュファイル
         self.cache_expiry = 300  # 5分間キャッシュ
+        self.max_retries = 3  # 最大リトライ回数
+        self.retry_delay = 1.0  # リトライ間隔（秒）
         
         # キャッシュディレクトリ作成
         os.makedirs("cache", exist_ok=True)
@@ -73,27 +78,87 @@ class SimpleOpenAPIFetcher:
             logger.warning(f"キャッシュ保存エラー: {e}")
     
     def get_today_races(self) -> Optional[Dict]:
-        """今日のレースデータ取得"""
+        """今日のレースデータ取得（リトライ機能付き）"""
         # キャッシュ確認
         cached_data = self._load_cache()
         if cached_data:
             return cached_data
         
-        # API取得
-        try:
-            url = f"{self.base_url}/today.json"
-            response = requests.get(url, timeout=10)
+        # API取得（リトライ機能付き）
+        last_error = None
+        for attempt in range(self.max_retries):
+            try:
+                url = f"{self.base_url}/today.json"
+                logger.info(f"API取得試行 {attempt + 1}/{self.max_retries}: {url}")
+                
+                response = requests.get(url, timeout=10)
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    self._save_cache(data)
+                    logger.info(f"API取得成功: {len(data.get('programs', []))}件")
+                    return data
+                else:
+                    last_error = f"HTTP {response.status_code}: {response.text[:100]}"
+                    logger.warning(f"API取得失敗 (試行{attempt + 1}): {last_error}")
+                    
+            except requests.exceptions.ConnectionError as e:
+                last_error = f"接続エラー: {str(e)[:100]}"
+                logger.warning(f"接続エラー (試行{attempt + 1}): {last_error}")
+                
+            except requests.exceptions.Timeout as e:
+                last_error = f"タイムアウト: {str(e)[:100]}"
+                logger.warning(f"タイムアウト (試行{attempt + 1}): {last_error}")
+                
+            except Exception as e:
+                last_error = f"予期しないエラー: {str(e)[:100]}"
+                logger.warning(f"予期しないエラー (試行{attempt + 1}): {last_error}")
             
-            if response.status_code == 200:
-                data = response.json()
-                self._save_cache(data)
-                logger.info(f"API取得成功: {len(data.get('programs', []))}件")
-                return data
-            else:
-                logger.error(f"API取得失敗: {response.status_code}")
-                return None
-        except Exception as e:
-            logger.error(f"API取得エラー: {e}")
+            # 最後の試行でなければ待機
+            if attempt < self.max_retries - 1:
+                time.sleep(self.retry_delay)
+        
+        logger.error(f"API取得に{self.max_retries}回失敗: {last_error}")
+        return None
+    
+    async def get_today_races_async(self) -> Optional[Dict]:
+        """非同期版レースデータ取得"""
+        # キャッシュ確認
+        cached_data = self._load_cache()
+        if cached_data:
+            return cached_data
+        
+        # 非同期API取得
+        async with aiohttp.ClientSession() as session:
+            last_error = None
+            for attempt in range(self.max_retries):
+                try:
+                    url = f"{self.base_url}/today.json"
+                    logger.info(f"非同期API取得試行 {attempt + 1}/{self.max_retries}: {url}")
+                    
+                    async with session.get(url, timeout=10) as response:
+                        if response.status == 200:
+                            data = await response.json()
+                            self._save_cache(data)
+                            logger.info(f"非同期API取得成功: {len(data.get('programs', []))}件")
+                            return data
+                        else:
+                            last_error = f"HTTP {response.status}"
+                            logger.warning(f"非同期API取得失敗 (試行{attempt + 1}): {last_error}")
+                            
+                except aiohttp.ClientError as e:
+                    last_error = f"接続エラー: {str(e)[:100]}"
+                    logger.warning(f"非同期接続エラー (試行{attempt + 1}): {last_error}")
+                    
+                except Exception as e:
+                    last_error = f"予期しないエラー: {str(e)[:100]}"
+                    logger.warning(f"非同期予期しないエラー (試行{attempt + 1}): {last_error}")
+                
+                # 最後の試行でなければ待機
+                if attempt < self.max_retries - 1:
+                    await asyncio.sleep(self.retry_delay)
+            
+            logger.error(f"非同期API取得に{self.max_retries}回失敗: {last_error}")
             return None
     
     def get_race_detail(self, venue_id: int, race_number: int) -> Optional[Dict]:
@@ -109,36 +174,113 @@ class SimpleOpenAPIFetcher:
         
         return None
 
-# グローバルフェッチャー
+# グローバルフェッチャーとエグゼキューター
 fetcher = SimpleOpenAPIFetcher()
+executor = ThreadPoolExecutor(max_workers=4)
+
+def run_async_in_thread(coro):
+    """非同期関数をスレッド内で実行"""
+    def run():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            return loop.run_until_complete(coro)
+        finally:
+            loop.close()
+    
+    future = executor.submit(run)
+    return future.result(timeout=30)  # 30秒タイムアウト
 
 def calculate_prediction(race_data: Dict) -> Dict:
-    """シンプルな予想計算"""
+    """高度な予想計算（複数指標統合）"""
     predictions = {}
     racers = []
     
     try:
+        # レース距離による補正係数
+        distance = race_data.get('race_distance', 1800)
+        distance_factor = 1.0
+        if distance <= 1200:
+            distance_factor = 1.05  # 短距離は技術重視
+        elif distance >= 2000:
+            distance_factor = 0.98  # 長距離は体力重視
+        
         for boat in race_data.get('boats', []):
             boat_number = boat.get('boat_number', len(racers) + 1)
             racer_name = boat.get('racer_name', '不明')
             
-            # 勝率から実力値計算
-            win_rate = float(boat.get('racer_national_top_1_percent', 0))
-            base_strength = min(win_rate / 100.0, 0.6)
+            # 複数の統計データを取得
+            national_win_rate = float(boat.get('racer_national_top_1_percent', 0))
+            local_win_rate = float(boat.get('racer_rate_local', national_win_rate))
+            national_place_rate = float(boat.get('racer_national_top_2_percent', 0))
+            average_st = float(boat.get('boat_average_start_timing', 0.17))
             
-            # 艇番有利度
-            lane_advantages = {1: 0.25, 2: 0.18, 3: 0.15, 4: 0.12, 5: 0.10, 6: 0.08}
-            lane_advantage = lane_advantages.get(boat_number, 0.08)
+            # 1. 基本実力値（全国勝率ベース）
+            base_strength = min(national_win_rate / 100.0, 0.5)
             
-            # 最終予想値
-            final_prediction = min(base_strength + lane_advantage, 0.85)
+            # 2. 当地適性（当地勝率との差異）
+            local_adaptation = 0.0
+            if local_win_rate > 0:
+                adaptation_diff = (local_win_rate - national_win_rate) / 100.0
+                local_adaptation = max(-0.1, min(0.1, adaptation_diff))  # -10%〜+10%
+            
+            # 3. 連対率考慮
+            place_bonus = 0.0
+            if national_place_rate > 0:
+                place_efficiency = national_place_rate / max(national_win_rate, 1)
+                if place_efficiency > 2.8:  # 連対率が勝率の2.8倍以上なら安定性ボーナス
+                    place_bonus = 0.03
+            
+            # 4. スタート技術（平均STによる補正）
+            st_factor = 1.0
+            if average_st > 0:
+                if average_st <= 0.15:  # 優秀なST
+                    st_factor = 1.08
+                elif average_st <= 0.17:  # 標準的なST
+                    st_factor = 1.03
+                elif average_st >= 0.20:  # 遅いST
+                    st_factor = 0.95
+            
+            # 5. 艇番有利度（従来）
+            lane_advantages = {1: 0.22, 2: 0.16, 3: 0.13, 4: 0.10, 5: 0.08, 6: 0.06}
+            lane_advantage = lane_advantages.get(boat_number, 0.06)
+            
+            # 6. モーター・ボート成績（利用可能な場合）
+            motor_bonus = 0.0
+            if 'motor_rate' in boat and boat['motor_rate']:
+                motor_rate = float(boat['motor_rate'])
+                if motor_rate > 40:  # 好調なモーター
+                    motor_bonus = 0.02
+                elif motor_rate < 30:  # 不調なモーター
+                    motor_bonus = -0.02
+            
+            # 総合予想値計算
+            final_prediction = (
+                (base_strength + local_adaptation + place_bonus) * 
+                st_factor * distance_factor + 
+                lane_advantage + motor_bonus
+            )
+            
+            # 上限・下限設定
+            final_prediction = max(0.05, min(final_prediction, 0.80))
             
             predictions[boat_number] = final_prediction
             racers.append({
                 'number': boat_number,
                 'name': racer_name,
-                'win_rate': win_rate,
-                'prediction': final_prediction
+                'win_rate': national_win_rate,
+                'local_win_rate': local_win_rate,
+                'place_rate': national_place_rate,
+                'average_st': average_st,
+                'prediction': final_prediction,
+                'analysis': {
+                    'base_strength': base_strength,
+                    'local_adaptation': local_adaptation,
+                    'place_bonus': place_bonus,
+                    'st_factor': st_factor,
+                    'lane_advantage': lane_advantage,
+                    'motor_bonus': motor_bonus
+                }
             })
         
         # 推奨艇計算
@@ -178,7 +320,7 @@ def index():
             return render_template('openapi_index.html', 
                                  races=[],
                                  total_races=0,
-                                 error="レースデータを取得できませんでした")
+                                 error="レースデータを取得できませんでした。インターネット接続を確認してください。")
         
         races = []
         for program in data['programs']:
@@ -254,7 +396,7 @@ def predict_race(race_id):
 
 @app.route('/api/races')
 def api_races():
-    """レース一覧API"""
+    """レース一覧API（同期版）"""
     try:
         data = fetcher.get_today_races()
         if data:
@@ -262,6 +404,30 @@ def api_races():
                 'success': True,
                 'total_races': len(data.get('programs', [])),
                 'data': data
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'データ取得失敗'
+            })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        })
+
+@app.route('/api/races/async')
+def api_races_async():
+    """レース一覧API（非同期版・高速）"""
+    try:
+        # 非同期APIを別スレッドで実行
+        data = run_async_in_thread(fetcher.get_today_races_async())
+        if data:
+            return jsonify({
+                'success': True,
+                'total_races': len(data.get('programs', [])),
+                'data': data,
+                'method': 'async'
             })
         else:
             return jsonify({
