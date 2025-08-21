@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BoatraceOpenAPI - レース予想</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 30px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid #007bff;
+        }
+        .race-info {
+            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        .race-title {
+            font-size: 1.5em;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .race-details {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            flex-wrap: wrap;
+        }
+        .detail-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .detail-label {
+            font-size: 0.9em;
+            opacity: 0.8;
+        }
+        .detail-value {
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+        .racers-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .racer-card {
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 20px;
+            background-color: #ffffff;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+        .racer-card.recommended {
+            border-color: #ffc107;
+            background: linear-gradient(135deg, #fff9c4 0%, #ffffff 100%);
+            box-shadow: 0 4px 15px rgba(255, 193, 7, 0.3);
+        }
+        .racer-card.top-prediction {
+            border-color: #dc3545;
+            background: linear-gradient(135deg, #ffe6e6 0%, #ffffff 100%);
+            box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3);
+        }
+        .racer-number {
+            position: absolute;
+            top: -10px;
+            left: -10px;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #007bff;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+        .racer-number.recommended {
+            background: #ffc107;
+            color: #000;
+        }
+        .racer-number.top-prediction {
+            background: #dc3545;
+        }
+        .racer-name {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #007bff;
+            margin: 10px 0;
+        }
+        .racer-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .stat-item {
+            text-align: center;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+        }
+        .stat-label {
+            font-size: 0.8em;
+            color: #666;
+        }
+        .stat-value {
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #007bff;
+        }
+        .prediction-bar {
+            width: 100%;
+            height: 20px;
+            background-color: #e0e0e0;
+            border-radius: 10px;
+            margin-top: 15px;
+            position: relative;
+            overflow: hidden;
+        }
+        .prediction-fill {
+            height: 100%;
+            border-radius: 10px;
+            transition: width 0.3s ease;
+        }
+        .prediction-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 0.9em;
+            font-weight: bold;
+            color: white;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+        }
+        .recommendations {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 10px;
+            margin-top: 30px;
+        }
+        .rec-title {
+            font-size: 1.4em;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .rec-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+        .rec-item {
+            text-align: center;
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            border-radius: 8px;
+        }
+        .rec-label {
+            font-size: 1em;
+            margin-bottom: 10px;
+            opacity: 0.9;
+        }
+        .rec-value {
+            font-size: 1.5em;
+            font-weight: bold;
+        }
+        .back-button {
+            display: inline-block;
+            background-color: #6c757d;
+            color: white;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            transition: background-color 0.3s ease;
+        }
+        .back-button:hover {
+            background-color: #545b62;
+            text-decoration: none;
+            color: white;
+        }
+        .error-message {
+            background-color: #f8d7da;
+            color: #721c24;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #f5c6cb;
+            text-align: center;
+            font-size: 1.1em;
+        }
+        .confidence-indicator {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+        }
+        .confidence-text {
+            font-weight: bold;
+            color: #666;
+        }
+        .confidence-stars {
+            color: #ffc107;
+        }
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+            .racers-grid {
+                grid-template-columns: 1fr;
+            }
+            .race-details {
+                flex-direction: column;
+                gap: 15px;
+            }
+            .rec-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="back-button">← レース一覧に戻る</a>
+
+        {% if error %}
+        <div class="error-message">
+            ❌ {{ error }}
+        </div>
+        {% else %}
+        <div class="race-info">
+            <div class="race-title">{{ venue_name }} {{ race_number }}R</div>
+            <div class="race-details">
+                <div class="detail-item">
+                    <span class="detail-label">発走時刻</span>
+                    <span class="detail-value">{{ start_time }}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="detail-label">レースタイトル</span>
+                    <span class="detail-value">{{ race_title or 'レース' }}</span>
+                </div>
+            </div>
+            {% if confidence %}
+            <div class="confidence-indicator">
+                <span class="confidence-text">予想信頼度:</span>
+                <span class="confidence-stars">
+                    {% for i in range((confidence * 5) | int) %}★{% endfor %}
+                    {% for i in range(5 - (confidence * 5) | int) %}☆{% endfor %}
+                </span>
+                <span>{{ (confidence * 100) | round(1) }}%</span>
+            </div>
+            {% endif %}
+        </div>
+
+        {% if racers %}
+        <div class="racers-grid">
+            {% for racer in racers %}
+            <div class="racer-card {% if racer.number == recommended_win %}top-prediction{% endif %} {% if racer.number in recommended_place[:2] %}recommended{% endif %}">
+                <div class="racer-number {% if racer.number == recommended_win %}top-prediction{% endif %} {% if racer.number in recommended_place[:2] %}recommended{% endif %}">
+                    {{ racer.number }}
+                </div>
+                <div class="racer-name">{{ racer.name }}</div>
+                
+                <div class="racer-stats">
+                    <div class="stat-item">
+                        <div class="stat-label">全国勝率</div>
+                        <div class="stat-value">{{ racer.win_rate | round(1) }}%</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">予想勝率</div>
+                        <div class="stat-value">{{ (racer.prediction * 100) | round(1) }}%</div>
+                    </div>
+                </div>
+                
+                <div class="prediction-bar">
+                    <div class="prediction-fill" style="width: {{ (racer.prediction * 100) | round(1) }}%; 
+                         background: linear-gradient(90deg, 
+                         {% if racer.prediction > 0.3 %}#dc3545{% elif racer.prediction > 0.2 %}#ffc107{% else %}#28a745{% endif %} 0%, 
+                         {% if racer.prediction > 0.3 %}#c82333{% elif racer.prediction > 0.2 %}#e0a800{% else %}#1e7e34{% endif %} 100%);">
+                    </div>
+                    <div class="prediction-text">{{ (racer.prediction * 100) | round(1) }}%</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="recommendations">
+            <div class="rec-title">🎯 AI予想推奨</div>
+            <div class="rec-grid">
+                <div class="rec-item">
+                    <div class="rec-label">単勝推奨</div>
+                    <div class="rec-value">{{ recommended_win }}号艇</div>
+                </div>
+                <div class="rec-item">
+                    <div class="rec-label">複勝推奨</div>
+                    <div class="rec-value">
+                        {% for boat in recommended_place[:3] %}
+                        {{ boat }}号艇{% if not loop.last %} • {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+                <div class="rec-item">
+                    <div class="rec-label">本命</div>
+                    <div class="rec-value">
+                        {% for racer in racers if racer.number == recommended_win %}
+                        {{ racer.name }}
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        {% endif %}
+    </div>
+
+    <script>
+        // アニメーション効果
+        document.addEventListener('DOMContentLoaded', function() {
+            const predictionBars = document.querySelectorAll('.prediction-fill');
+            
+            // 予想バーのアニメーション
+            setTimeout(() => {
+                predictionBars.forEach(bar => {
+                    const width = bar.style.width;
+                    bar.style.width = '0%';
+                    setTimeout(() => {
+                        bar.style.width = width;
+                    }, 100);
+                });
+            }, 500);
+
+            // レーサーカードの順次表示
+            const racerCards = document.querySelectorAll('.racer-card');
+            racerCards.forEach((card, index) => {
+                card.style.opacity = '0';
+                card.style.transform = 'translateY(20px)';
+                setTimeout(() => {
+                    card.style.transition = 'all 0.5s ease';
+                    card.style.opacity = '1';
+                    card.style.transform = 'translateY(0)';
+                }, index * 100);
+            });
+        });
+
+        // カードホバー効果
+        document.querySelectorAll('.racer-card').forEach(card => {
+            card.addEventListener('mouseenter', function() {
+                this.style.transform = 'translateY(-5px)';
+            });
+            
+            card.addEventListener('mouseleave', function() {
+                this.style.transform = 'translateY(0)';
+            });
+        });
+    </script>
+</body>
+</html>
