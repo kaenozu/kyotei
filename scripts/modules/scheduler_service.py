@@ -187,7 +187,7 @@ class IntegratedScheduler:
                                         
                                         cursor.execute('''
                                             INSERT OR REPLACE INTO accuracy_records 
-                                            (prediction_id, result_id, is_win_hit, is_place_hit, hit_status, timestamp)
+                                            (prediction_id, result_id, is_win_hit, is_place_hit, hit_status, calculated_at)
                                             VALUES (?, ?, ?, ?, ?, ?)
                                         ''', (pred_id, result_id, is_win_hit, is_place_hit,
                                               'hit' if is_win_hit else 'miss', datetime.now().isoformat()))
