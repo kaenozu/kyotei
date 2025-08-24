@@ -219,7 +219,7 @@ class EnhancedPredictor:
                         'boat_rate': prog_boat.get('racer_assigned_boat_top_2_percent', 0),
                         'start_timing': prev_boat.get('racer_start_timing', 0.17),
                         'exhibition_time': prev_boat.get('racer_exhibition_time', 0),
-                        'analysis': self._generate_analysis(prog_boat, prev_boat)
+                        'analysis': self._generate_analysis(prog_boat, prev_boat, boat_num)
                     }
                     racer_data.append(racer_info)
             
@@ -316,20 +316,38 @@ class EnhancedPredictor:
             logger.error(f"艇スコア計算エラー: {e}")
             return 0.0
     
-    def _generate_analysis(self, prog_boat: Dict, prev_boat: Dict) -> Dict:
+    def _generate_analysis(self, prog_boat: Dict, prev_boat: Dict, boat_number: int) -> Dict:
         """レーサー分析データ生成"""
         analysis = {}
         
-        # 基本能力
-        analysis['national_strength'] = prog_boat.get('racer_national_top_1_percent', 0)
-        analysis['local_adaptation'] = prog_boat.get('racer_local_top_1_percent', 0)
+        # テンプレート期待フィールド
+        national_win = prog_boat.get('racer_national_top_1_percent', 0) / 100
+        local_win = prog_boat.get('racer_local_top_1_percent', 0) / 100
         
-        # 機材
+        # 基本実力（国体勝率をベースに計算）
+        analysis['base_strength'] = national_win
+        
+        # 艇番有利性（コース別有利性を計算）
+        position_advantages = {
+            1: 0.35, 2: 0.18, 3: 0.16, 4: 0.10, 5: 0.08, 6: 0.06
+        }
+        analysis['lane_advantage'] = position_advantages.get(boat_number, 0.15)
+        
+        # 当地適性
+        analysis['local_adaptation'] = local_win
+        
+        # ST補正係数
+        start_timing = prev_boat.get('racer_start_timing', 0.17)
+        if start_timing is not None:
+            analysis['st_factor'] = max(0.5, 1 - abs(abs(start_timing) - 0.15) * 2)
+        else:
+            analysis['st_factor'] = 1.0
+        
+        # 従来フィールド（互換性のため）
+        analysis['national_strength'] = national_win * 100
         analysis['motor_bonus'] = prog_boat.get('racer_assigned_motor_top_2_percent', 0)
         analysis['boat_bonus'] = prog_boat.get('racer_assigned_boat_top_2_percent', 0)
-        
-        # コンディション
-        analysis['start_evaluation'] = self._evaluate_start_timing(prev_boat.get('racer_start_timing', 0.17))
+        analysis['start_evaluation'] = self._evaluate_start_timing(start_timing)
         analysis['exhibition_evaluation'] = self._evaluate_exhibition_time(prev_boat.get('racer_exhibition_time', 0))
         
         return analysis
