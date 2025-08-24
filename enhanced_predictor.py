@@ -7,6 +7,7 @@ BoatraceOpenAPI Programs & Previewsを活用した高精度予想
 import requests
 import json
 import logging
+import time
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 import numpy as np
@@ -202,13 +203,18 @@ class EnhancedPredictor:
                     score = self._calculate_boat_score(prog_boat, prev_boat, preview)
                     predictions[boat_num] = score
                     
-                    # レーサー詳細データ
+                    # レーサー詳細データ（テンプレート互換性を確保）
                     racer_info = {
                         'number': boat_num,
                         'name': prog_boat.get('racer_name', '不明'),
                         'prediction': score,
-                        'national_win_rate': prog_boat.get('racer_national_top_1_percent', 0),
+                        # テンプレート互換フィールド
+                        'win_rate': prog_boat.get('racer_national_top_1_percent', 0),
                         'local_win_rate': prog_boat.get('racer_local_top_1_percent', 0),
+                        'place_rate': prog_boat.get('racer_national_top_2_percent', 0),
+                        'average_st': prev_boat.get('racer_start_timing', 0.17),
+                        # 分析用の詳細データ
+                        'national_win_rate': prog_boat.get('racer_national_top_1_percent', 0),
                         'motor_rate': prog_boat.get('racer_assigned_motor_top_2_percent', 0),
                         'boat_rate': prog_boat.get('racer_assigned_boat_top_2_percent', 0),
                         'start_timing': prev_boat.get('racer_start_timing', 0.17),
@@ -300,9 +306,9 @@ class EnhancedPredictor:
             accuracy_adjustment = (accuracy_factor - 0.5) * 0.5  # -0.15 〜 +0.15 の調整
             score += accuracy_adjustment * self.weights['accuracy_history']
             
-            # ランダム性の追加（予想の多様性確保）
-            randomness = (random.random() - 0.5) * 0.02  # ±1%のランダム要素（ML統合で安定性重視）
-            score += randomness
+            # ランダム性を削除（予想の安定性確保のため）
+            # randomness = (random.random() - 0.5) * 0.02  # 削除: 順位変動の原因
+            # score += randomness
             
             return min(1.0, max(0.0, score))  # 0.0-1.0に制限
             

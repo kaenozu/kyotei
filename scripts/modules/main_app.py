@@ -75,24 +75,43 @@ def initialize_components(app, logger):
     
     # 必要に応じて他のクラスもインポート
     try:
-        # sys.pathに現在のディレクトリを追加してインポートエラーを回避
+        # sys.pathにプロジェクトルートディレクトリを追加
         import sys
-        current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        if current_dir not in sys.path:
-            sys.path.insert(0, current_dir)
+        # scripts/modules/ から見て、プロジェクトルートは ../../ 
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        if project_root not in sys.path:
+            sys.path.insert(0, project_root)
         
-        from src.core.accuracy_tracker import AccuracyTracker
+        from src.core.accuracy_tracker import AccuracyTracker as OriginalAccuracyTracker
         from enhanced_predictor import EnhancedPredictor
+        
+        # AccuracyTrackerのパス修正版クラス
+        class AccuracyTracker(OriginalAccuracyTracker):
+            def __init__(self):
+                super().__init__()
+                # scripts/modules/から相対パスでcache/にアクセス
+                self.db_path = '../cache/accuracy_tracker.db'
         
         logger.info("[OK] 外部クラスインポート成功")
         
     except ImportError as e:
         logger.warning(f"外部クラスインポート失敗: {e}")
-        # フォールバック用のダミークラス
+        # フォールバック用に実際のメソッドを持つダミークラス
         class AccuracyTracker:
-            pass
+            def __init__(self):
+                self.db_path = '../cache/accuracy_tracker.db'
+            def calculate_accuracy(self):
+                return {'summary': {'total_predictions': 0, 'win_hits': 0, 'win_accuracy': 0}, 'races': [], 'venues': {}}
+            def save_prediction(self, *args):
+                pass
+            def save_race_details(self, *args):
+                pass
+            def get_race_details(self, *args):
+                return None
+        
         class EnhancedPredictor:
-            pass
+            def calculate_enhanced_prediction(self, venue_id, race_number, date_str='today'):
+                return None
     
     # コンポーネント初期化
     fetcher = SimpleOpenAPIFetcher()

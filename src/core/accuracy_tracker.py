@@ -7,6 +7,7 @@
 import sqlite3
 import json
 import logging
+import time
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 
@@ -116,7 +117,7 @@ class AccuracyTracker:
                 cursor = conn.cursor()
                 cursor.execute('''
                     INSERT OR REPLACE INTO predictions
-                    (race_date, venue_id, venue_name, race_number, predicted_win, predicted_place, confidence, prediction_data, timestamp)
+                    (race_date, venue_id, venue_name, race_number, predicted_win, predicted_place, confidence, prediction_data, created_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (race_date, venue_id, venue_name, race_number, predicted_win,
                       json.dumps(predicted_place), confidence, json.dumps(prediction_result),
@@ -139,10 +140,10 @@ class AccuracyTracker:
                 cursor = conn.cursor()
                 cursor.execute('''
                     INSERT OR REPLACE INTO race_details
-                    (race_date, venue_id, venue_name, race_number, race_data, prediction_data, timestamp)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    (race_date, venue_id, venue_name, race_number, race_data, boats_data, prediction_data, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (race_date, venue_id, venue_name, race_number,
-                      json.dumps(race_data), json.dumps(prediction_result),
+                      json.dumps(race_data), json.dumps(race_data.get('boats', [])), json.dumps(prediction_result),
                       datetime.now().isoformat()))
                 
                 conn.commit()
@@ -183,13 +184,13 @@ class AccuracyTracker:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
                 
-                # 基本統計
+                # 基本統計 - race_detailsテーブルから取得
                 cursor.execute('''
                     SELECT COUNT(*) as total_predictions,
-                           COUNT(CASE WHEN ar.is_win_hit = 1 THEN 1 END) as win_hits
-                    FROM predictions p
-                    LEFT JOIN accuracy_records ar ON p.id = ar.prediction_id
-                    WHERE p.race_date = ?
+                           COUNT(CASE WHEN JSON_EXTRACT(rd.prediction_data, '$.recommended_win') = rr.winning_boat THEN 1 END) as win_hits
+                    FROM race_details rd
+                    LEFT JOIN race_results rr ON rd.venue_id = rr.venue_id AND rd.race_number = rr.race_number AND rd.race_date = rr.race_date
+                    WHERE rd.race_date = ?
                 ''', (datetime.now().strftime('%Y-%m-%d'),))
                 
                 stats = cursor.fetchone()
@@ -198,26 +199,55 @@ class AccuracyTracker:
                 
                 win_accuracy = (win_hits / total_predictions * 100) if total_predictions > 0 else 0
                 
-                # レース別詳細
+                # レース別詳細（race_detailsテーブルから取得してデータソースを統一）
                 cursor.execute('''
-                    SELECT p.venue_name, p.race_number, p.predicted_win, 
-                           rr.winning_boat, ar.is_win_hit
-                    FROM predictions p
-                    LEFT JOIN race_results rr ON p.venue_id = rr.venue_id AND p.race_number = rr.race_number AND p.race_date = rr.race_date
-                    LEFT JOIN accuracy_records ar ON p.id = ar.prediction_id
-                    WHERE p.race_date = ?
-                    ORDER BY p.venue_id, p.race_number
+                    SELECT rd.venue_id, rd.venue_name, rd.race_number, rd.prediction_data,
+                           rr.winning_boat, rr.place_results, rd.race_date
+                    FROM race_details rd
+                    LEFT JOIN race_results rr ON rd.venue_id = rr.venue_id AND rd.race_number = rr.race_number AND rd.race_date = rr.race_date
+                    WHERE rd.race_date = ?
+                    ORDER BY rd.venue_id, rd.race_number
                 ''', (datetime.now().strftime('%Y-%m-%d'),))
                 
                 races = []
                 for row in cursor.fetchall():
-                    venue_name, race_number, predicted_win, winning_boat, is_win_hit = row
+                    venue_id, venue_name, race_number, prediction_data_json, winning_boat, place_results_json, race_date = row
+                    
+                    # prediction_dataからJSONを解析
+                    prediction_data = json.loads(prediction_data_json) if prediction_data_json else {}
+                    predicted_win = prediction_data.get('recommended_win')
+                    predicted_place = prediction_data.get('recommended_place', [])
+                    confidence = prediction_data.get('confidence', 0.5)
+                    
+                    is_hit = (predicted_win == winning_boat) if (predicted_win is not None and winning_boat is not None) else None
+                    
+                    # actual_resultフィールドを構築
+                    actual_result = None
+                    if winning_boat is not None:
+                        place_results = json.loads(place_results_json) if place_results_json else []
+                        actual_result = {
+                            'win': winning_boat,
+                            'place': place_results[:2] if len(place_results) >= 2 else []
+                        }
+                    
+                    # hit_statusフィールドを構築（テンプレート用）
+                    hit_status = 'pending'
+                    if is_hit is True:
+                        hit_status = 'hit'
+                    elif is_hit is False:
+                        hit_status = 'miss'
+                    
                     races.append({
+                        'venue_id': venue_id,
                         'venue_name': venue_name,
                         'race_number': race_number,
                         'predicted_win': predicted_win,
                         'winning_boat': winning_boat,
-                        'is_hit': bool(is_win_hit) if is_win_hit is not None else None
+                        'actual_result': actual_result,
+                        'is_hit': is_hit,
+                        'hit_status': hit_status,
+                        'confidence': confidence or 0.5,
+                        'date': race_date
                     })
                 
                 return {

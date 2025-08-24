@@ -28,15 +28,20 @@ python scripts/web_app_modular.py
 cd scripts && python -m modules.main_app
 ```
 
-### Windows での使用（モジュール化版）
+### Windows での使用
 
 ```cmd
-# モジュール化版起動
-cd scripts
-start_modular.bat
+# 統合起動スクリプト（推奨）
+start_kyotei.bat
 
-# レガシー版起動
-start_modular.bat legacy
+# 直接指定
+start_kyotei.bat modular  # モジュール化版
+start_kyotei.bat web      # レガシー統一版
+start_kyotei.bat legacy   # レガシー全機能
+
+# 個別スクリプト
+cd scripts
+start_modular.bat         # モジュール化版専用
 ```
 
 ### レガシー版（統一システム）

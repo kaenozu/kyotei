@@ -165,10 +165,10 @@ class IntegratedScheduler:
                                     # データベースに結果を保存
                                     cursor.execute('''
                                         INSERT OR REPLACE INTO race_results
-                                        (race_date, venue_id, venue_name, race_number, winning_boat, place_results, result_data, timestamp)
-                                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                                        (race_date, venue_id, venue_name, race_number, winning_boat, place_results, result_data)
+                                        VALUES (?, ?, ?, ?, ?, ?, ?)
                                     ''', (current_date, venue_id, venue_name, race_number, winning_boat,
-                                          json.dumps(place_results), json.dumps(race), datetime.now().isoformat()))
+                                          json.dumps(place_results), json.dumps(race)))
                                     
                                     # 対応する予測データがあれば的中記録を作成
                                     cursor.execute('''

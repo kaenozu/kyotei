@@ -185,20 +185,25 @@ class RouteHandlers:
                 with sqlite3.connect(tracker.db_path) as conn:
                     cursor = conn.cursor()
                     
-                    # 今日の予想データを取得
+                    # 今日の最新予想データを race_details テーブルから取得
                     cursor.execute("""
-                        SELECT venue_id, race_number, predicted_win, predicted_place, confidence
-                        FROM predictions 
+                        SELECT venue_id, race_number, prediction_data
+                        FROM race_details 
                         WHERE race_date = ?
                     """, (race_date,))
                     
                     for row in cursor.fetchall():
-                        venue_id, race_number, predicted_win, predicted_place_json, confidence = row
+                        venue_id, race_number, prediction_data_json = row
                         key = f"{venue_id}_{race_number}"
                         try:
-                            predicted_place = json.loads(predicted_place_json) if predicted_place_json else []
+                            prediction_json = json.loads(prediction_data_json) if prediction_data_json else {}
+                            predicted_win = prediction_json.get('recommended_win') or prediction_json.get('predicted_win', 1)
+                            predicted_place = prediction_json.get('recommended_place') or prediction_json.get('predicted_place', [1, 2, 3])
+                            confidence = prediction_json.get('confidence', 0.5)
                         except:
-                            predicted_place = []
+                            predicted_win = 1
+                            predicted_place = [1, 2, 3]
+                            confidence = 0.5
                         
                         prediction_data[key] = {
                             'predicted_win': predicted_win,
