@@ -43,18 +43,17 @@ class EnhancedPredictor:
                 logger.error(f"ML予想システム初期化エラー: {e}")
                 self.ml_predictor = None
         
-        # 重み係数（ML統合版）
+        # 重み係数（競艇実情反映版）
         self.weights = {
-            'national_win_rate': 0.16,      # 全国勝率
-            'local_win_rate': 0.11,         # 当地勝率
-            'motor_performance': 0.11,      # モーター性能
-            'boat_performance': 0.07,       # ボート性能
-            'start_timing': 0.09,           # スタートタイミング
-            'exhibition_time': 0.07,        # 展示タイム
-            'weather_conditions': 0.05,     # 気象条件
-            'position_advantage': 0.14,     # コース別有利性
-            'ml_prediction': 0.10,          # ML予想
-            'accuracy_history': 0.10        # 的中率履歴（新追加）
+            'position_advantage': 0.45,     # コース別有利性（最重要）
+            'national_win_rate': 0.12,      # 全国勝率
+            'local_win_rate': 0.08,         # 当地勝率
+            'start_timing': 0.12,           # スタートタイミング（重要）
+            'motor_performance': 0.08,      # モーター性能
+            'boat_performance': 0.05,       # ボート性能
+            'exhibition_time': 0.05,        # 展示タイム
+            'weather_conditions': 0.03,     # 気象条件
+            'ml_prediction': 0.02           # ML予想（補助的）
         }
         
         # 的中率データキャッシュ
@@ -268,14 +267,14 @@ class EnhancedPredictor:
             score = 0.0
             boat_number = prog_boat.get('racer_boat_number', 1)
             
-            # コース別有利性（バランス版：1号艇を適度に優遇）
+            # コース別有利性（実績統計版：実際の勝率を反映）
             position_advantages = {
-                1: 0.35,  # 1号艇：適度な優遇
-                2: 0.18,  # 2号艇：適正レベル
-                3: 0.16,  # 3号艇：適正レベル  
-                4: 0.10,  # 4号艇：やや低め
-                5: 0.08,  # 5号艇：やや低め
-                6: 0.06   # 6号艇：最も不利
+                1: 0.50,  # 1号艇：統計上約50%の勝率
+                2: 0.15,  # 2号艇：統計上約15%の勝率
+                3: 0.12,  # 3号艇：統計上約12%の勝率  
+                4: 0.10,  # 4号艇：統計上約10%の勝率
+                5: 0.08,  # 5号艇：統計上約8%の勝率
+                6: 0.05   # 6号艇：統計上約5%の勝率
             }
             position_advantage = position_advantages.get(boat_number, 0.15)
             score += position_advantage * self.weights['position_advantage']
@@ -612,25 +611,44 @@ class EnhancedPredictor:
             return (national + local) / 2
     
     def _calculate_confidence(self, predictions: Dict, race_conditions: Dict) -> float:
-        """信頼度計算"""
+        """競艇特性を考慮した信頼度計算"""
         try:
-            # 予想値の分散を計算
             values = list(predictions.values())
             if len(values) < 2:
                 return 0.5
             
-            mean_val = np.mean(values)
-            variance = np.var(values)
+            # 1号艇の予想値を基準とした信頼度計算
+            boat_1_score = predictions.get(1, 0)
+            max_score = max(values)
             
-            # 分散が大きい（差がはっきりしている）ほど信頼度高
-            confidence = min(0.95, 0.5 + variance * 2)
+            # 1号艇が最高スコアかつ十分高い場合は高信頼度
+            if boat_1_score == max_score and boat_1_score > 0.4:
+                base_confidence = 0.8
+            elif max_score > 0.3:  # 明確な有力候補がいる場合
+                base_confidence = 0.7
+            else:  # 混戦の場合
+                base_confidence = 0.5
             
-            # 気象条件による補正
+            # スコア差による信頼度調整
+            sorted_values = sorted(values, reverse=True)
+            if len(sorted_values) >= 2:
+                score_diff = sorted_values[0] - sorted_values[1]
+                confidence = base_confidence + (score_diff * 0.5)
+            else:
+                confidence = base_confidence
+            
+            # 気象条件による補正（より詳細）
             wind = race_conditions.get('race_wind', 0)
             wave = race_conditions.get('race_wave', 0)
             
-            if wind >= 4 or wave >= 4:
-                confidence *= 0.8  # 荒天時は信頼度下げる
+            # 荒天時の補正（1号艇有利性が増すため、むしろ信頼度を上げる場合も）
+            if wind >= 5 or wave >= 4:
+                if boat_1_score == max_score:
+                    confidence *= 1.1  # 1号艇予想時は荒天で信頼度アップ
+                else:
+                    confidence *= 0.7  # その他は信頼度ダウン
+            elif wind >= 3 or wave >= 3:
+                confidence *= 0.9  # 軽微な悪条件
             
             return confidence
             
