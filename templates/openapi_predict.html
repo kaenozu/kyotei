@@ -215,13 +215,36 @@
             padding: 12px 24px;
             text-decoration: none;
             border-radius: 5px;
-            margin-bottom: 20px;
+            margin: 0 10px 20px 0;
             transition: background-color 0.3s ease;
         }
         .back-button:hover {
             background-color: #545b62;
             text-decoration: none;
             color: white;
+        }
+        .official-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #ff6b35 0%, #f7941e 100%);
+            color: white;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 0 10px 20px 0;
+            transition: all 0.3s ease;
+            font-weight: bold;
+        }
+        .official-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(255, 107, 53, 0.3);
+            text-decoration: none;
+            color: white;
+        }
+        .button-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 20px;
         }
         .error-message {
             background-color: #f8d7da;
@@ -263,12 +286,25 @@
             .rec-grid {
                 grid-template-columns: 1fr;
             }
+            .button-group {
+                flex-direction: column;
+            }
+            .back-button,
+            .official-button {
+                text-align: center;
+                margin: 0 0 10px 0;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <a href="/" class="back-button">← レース一覧に戻る</a>
+        <div class="button-group">
+            <a href="/" class="back-button">← レース一覧に戻る</a>
+            <a href="#" class="official-button" onclick="openOfficialPage({{ venue_id }}, {{ race_number }})">
+                🏁 ボートレース公式
+            </a>
+        </div>
 
         {% if error %}
         <div class="error-message">
@@ -291,10 +327,11 @@
             <div class="confidence-indicator">
                 <span class="confidence-text">予想信頼度:</span>
                 <span class="confidence-stars">
-                    {% for i in range((confidence * 5) | int) %}★{% endfor %}
-                    {% for i in range(5 - (confidence * 5) | int) %}☆{% endfor %}
+                    {% set conf_val = confidence | default(0.5) %}
+                    {% for i in range((conf_val * 5) | int) %}★{% endfor %}
+                    {% for i in range(5 - (conf_val * 5) | int) %}☆{% endfor %}
                 </span>
-                <span>{{ (confidence * 100) | round(1) }}%</span>
+                <span>{{ ((confidence | default(0.5)) * 100) | round(1) }}%</span>
             </div>
             {% endif %}
         </div>
@@ -302,7 +339,11 @@
         {% if racers %}
         <div class="racers-grid">
             {% for racer in racers %}
+            {% set predicted_rank = loop.index %}
             <div class="racer-card {% if racer.number == recommended_win %}top-prediction{% endif %} {% if racer.number in recommended_place[:2] %}recommended{% endif %}">
+                <div class="predicted-rank" style="position: absolute; top: -10px; right: -10px; background: linear-gradient(135deg, #ff6b35, #f7941e); color: white; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.9em;">
+                    {{ predicted_rank }}
+                </div>
                 <div class="racer-number {% if racer.number == recommended_win %}top-prediction{% endif %} {% if racer.number in recommended_place[:2] %}recommended{% endif %}">
                     {{ racer.number }}
                 </div>
@@ -311,37 +352,37 @@
                 <div class="racer-stats">
                     <div class="stat-item">
                         <div class="stat-label">全国勝率</div>
-                        <div class="stat-value">{{ racer.win_rate | round(1) }}%</div>
+                        <div class="stat-value">{{ (racer.win_rate | default(0)) | round(1) }}%</div>
                     </div>
                     <div class="stat-item">
                         <div class="stat-label">当地勝率</div>
-                        <div class="stat-value">{{ racer.local_win_rate | round(1) }}%</div>
+                        <div class="stat-value">{{ (racer.local_win_rate | default(0)) | round(1) }}%</div>
                     </div>
                     <div class="stat-item">
                         <div class="stat-label">連対率</div>
-                        <div class="stat-value">{{ racer.place_rate | round(1) }}%</div>
+                        <div class="stat-value">{{ (racer.place_rate | default(0)) | round(1) }}%</div>
                     </div>
                     <div class="stat-item">
                         <div class="stat-label">平均ST</div>
-                        <div class="stat-value">{{ racer.average_st | round(3) }}</div>
+                        <div class="stat-value">{{ (racer.average_st | default(0.17)) | round(3) }}</div>
                     </div>
                 </div>
                 
                 <div class="analysis-details" style="margin-top: 10px; font-size: 0.85em; color: #666;">
                     <div><strong>AI分析:</strong></div>
-                    <div>基本実力: {{ (racer.analysis.base_strength * 100) | round(1) }}%</div>
-                    <div>当地適性: {{ (racer.analysis.local_adaptation * 100) | round(1) }}%</div>
-                    <div>艇番有利: {{ (racer.analysis.lane_advantage * 100) | round(1) }}%</div>
-                    <div>ST補正: ×{{ racer.analysis.st_factor | round(2) }}</div>
+                    <div>基本実力: {{ ((racer.analysis.base_strength | default(0)) * 100) | round(1) }}%</div>
+                    <div>当地適性: {{ ((racer.analysis.local_adaptation | default(0)) * 100) | round(1) }}%</div>
+                    <div>艇番有利: {{ ((racer.analysis.lane_advantage | default(0)) * 100) | round(1) }}%</div>
+                    <div>ST補正: ×{{ (racer.analysis.st_factor | default(1.0)) | round(2) }}</div>
                 </div>
                 
                 <div class="prediction-bar">
-                    <div class="prediction-fill" style="width: {{ (racer.prediction * 100) | round(1) }}%; 
+                    <div class="prediction-fill" style="width: {{ ((racer.prediction | default(0)) * 100) | round(1) }}%; 
                          background: linear-gradient(90deg, 
                          {% if racer.prediction > 0.3 %}#dc3545{% elif racer.prediction > 0.2 %}#ffc107{% else %}#28a745{% endif %} 0%, 
                          {% if racer.prediction > 0.3 %}#c82333{% elif racer.prediction > 0.2 %}#e0a800{% else %}#1e7e34{% endif %} 100%);">
                     </div>
-                    <div class="prediction-text">{{ (racer.prediction * 100) | round(1) }}%</div>
+                    <div class="prediction-text">{{ ((racer.prediction | default(0)) * 100) | round(1) }}%</div>
                 </div>
             </div>
             {% endfor %}
@@ -377,6 +418,25 @@
     </div>
 
     <script>
+        // 公式ページを開く
+        function openOfficialPage(venueId, raceNumber) {
+            // 今日の日付を取得（YYYYMMDD形式）
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            const dateStr = year + month + day;
+            
+            // 競艇場IDを2桁にフォーマット
+            const jcd = String(venueId).padStart(2, '0');
+            
+            // ボートレース公式の詳細レースページURL
+            const raceUrl = `https://www.boatrace.jp/owpc/pc/race/racelist?rno=${raceNumber}&jcd=${jcd}&hd=${dateStr}`;
+            
+            // 新しいタブで公式レースページを開く
+            window.open(raceUrl, '_blank');
+        }
+        
         // ページ読み込み時にテーマを復元
         document.addEventListener('DOMContentLoaded', function() {
             const savedTheme = localStorage.getItem('theme');

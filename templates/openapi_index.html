@@ -112,6 +112,97 @@
             box-shadow: 0 4px 15px rgba(0,123,255,0.2);
             transform: translateY(-2px);
         }
+        .race-card.finished {
+            opacity: 0.5;
+            background-color: #f8f9fa;
+            border-color: #d6d8db;
+            cursor: not-allowed;
+        }
+        [data-theme="dark"] .race-card.finished {
+            background-color: #3a3a3a;
+            border-color: #555;
+            color: #888;
+        }
+        .race-card.finished:hover {
+            border-color: #d6d8db;
+            box-shadow: none;
+            transform: none;
+        }
+        .race-card.finished .race-venue {
+            color: #6c757d;
+        }
+        .race-card.finished .race-number {
+            background-color: #e9ecef;
+            border-color: #adb5bd;
+            color: #6c757d;
+        }
+        .race-card.finished .race-time {
+            color: #adb5bd;
+        }
+        .finished-label {
+            display: inline-block;
+            background-color: #6c757d;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            margin-left: 8px;
+        }
+        .prediction-section {
+            margin-top: 15px;
+            padding-top: 12px;
+            border-top: 1px solid var(--border-color);
+        }
+        .prediction-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 0.9em;
+        }
+        .prediction-label {
+            color: #666;
+            font-weight: bold;
+            flex: 0 0 auto;
+        }
+        .prediction-value {
+            color: var(--header-color);
+            font-weight: bold;
+            text-align: right;
+        }
+        .result-value {
+            color: #28a745;
+            font-weight: bold;
+            text-align: right;
+        }
+        .confidence-stars {
+            color: #ffc107;
+            font-size: 0.8em;
+        }
+        .hit-indicator {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 8px;
+            font-size: 0.75em;
+            margin-left: 5px;
+        }
+        .hit-indicator.hit {
+            background-color: #28a745;
+            color: white;
+        }
+        .hit-indicator.miss {
+            background-color: #dc3545;
+            color: white;
+        }
+        .vs-display {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .vs-arrow {
+            color: #666;
+            font-size: 0.8em;
+        }
         .race-venue {
             font-size: 1.3em;
             font-weight: bold;
@@ -159,6 +250,81 @@
             font-size: 1.2em;
             padding: 40px;
         }
+        /* ロードインジケーター用CSS */
+        .loading-section {
+            text-align: center;
+            padding: 40px;
+            background-color: var(--container-bg);
+            border-radius: 10px;
+            margin-bottom: 30px;
+        }
+        
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            margin: 0 auto 20px;
+            border: 4px solid var(--border-color);
+            border-left: 4px solid var(--header-color);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .loading-text h3 {
+            color: var(--header-color);
+            margin-bottom: 20px;
+        }
+        
+        #progress-bar {
+            width: 100%;
+            max-width: 400px;
+            height: 20px;
+            background-color: var(--border-color);
+            border-radius: 10px;
+            margin: 20px auto;
+            overflow: hidden;
+        }
+        
+        #progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--header-color), #4dabf7);
+            width: 0%;
+            transition: width 0.3s ease;
+            border-radius: 10px;
+        }
+        
+        #loading-message {
+            color: var(--text-color);
+            font-size: 1.1em;
+            margin: 10px 0;
+        }
+        
+        #loading-details {
+            color: #666;
+            font-size: 0.9em;
+            margin-top: 10px;
+        }
+        
+        #loading-step {
+            font-weight: bold;
+            color: var(--header-color);
+        }
+        
+        .race-card.loading-placeholder {
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+        }
+        
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+        
         @media (max-width: 768px) {
             .container {
                 padding: 20px;
@@ -173,6 +339,25 @@
             .header h1 {
                 font-size: 1.8em;
             }
+            .prediction-row {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 5px;
+                margin-bottom: 10px;
+            }
+            .prediction-value,
+            .result-value {
+                text-align: left;
+            }
+            .vs-display {
+                flex-wrap: wrap;
+            }
+            .loading-section {
+                padding: 30px 20px;
+            }
+            #progress-bar {
+                max-width: 100%;
+            }
         }
     </style>
 </head>
@@ -182,6 +367,9 @@
             <button class="theme-toggle" onclick="toggleTheme()">🌙 ダーク</button>
             <h1>🏁 BoatraceOpenAPI</h1>
             <p>{{ current_time }} 現在のレース情報</p>
+            <div style="margin-top: 15px;">
+                <a href="/accuracy" style="background: linear-gradient(135deg, #28a745, #20c997); color: white; padding: 10px 20px; text-decoration: none; border-radius: 20px; font-weight: bold;">📊 的中率レポート</a>
+            </div>
         </div>
 
         {% if error %}
@@ -204,26 +392,31 @@
             </div>
         </div>
 
-        {% if races %}
-        <div class="race-grid">
-            {% for race in races %}
-            <div class="race-card" onclick="location.href='/predict/{{ race.race_id }}'">
-                <div class="race-venue">{{ race.venue_name }}</div>
-                <div class="race-info">
-                    <div class="race-number">{{ race.race_number }}R</div>
-                    <div class="race-time">{{ race.start_time }}</div>
+        <!-- ロードインジケーター -->
+        <div id="loading-indicator" class="loading-section">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">
+                <h3 id="loading-title">📊 レースデータを読み込み中...</h3>
+                <div id="progress-bar">
+                    <div id="progress-fill"></div>
                 </div>
-                {% if race.race_title %}
-                <div class="race-title">{{ race.race_title }}</div>
-                {% endif %}
+                <p id="loading-message">データ取得を開始しています...</p>
+                <div id="loading-details">
+                    <span id="loading-step">準備中</span> - 
+                    <span id="loading-progress">0</span>/<span id="loading-total">5</span>
+                </div>
             </div>
-            {% endfor %}
         </div>
-        {% else %}
-        <div class="loading">
-            📊 レースデータを読み込み中...
+
+        <!-- レース一覧（動的に追加） -->
+        <div id="race-grid" class="race-grid" style="display: none;">
+            <!-- JavaScriptで動的に追加 -->
         </div>
-        {% endif %}
+
+        <!-- エラー表示 -->
+        <div id="error-section" class="error-message" style="display: none;">
+            <span id="error-text"></span>
+        </div>
         {% endif %}
     </div>
 
@@ -253,26 +446,261 @@
                 document.body.setAttribute('data-theme', 'dark');
                 button.textContent = '☀️ ライト';
             }
+            
+            // 非同期データロードを開始
+            loadRaceData();
         });
+
+        // 非同期レースデータ読み込み機能
+        async function loadRaceData() {
+            const loadingIndicator = document.getElementById('loading-indicator');
+            const raceGrid = document.getElementById('race-grid');
+            const errorSection = document.getElementById('error-section');
+            const stats = document.querySelector('.stats');
+            
+            try {
+                // Step 1: 基本データ取得
+                updateLoadingProgress('データ取得', 1, 4, 'レースデータを取得中...');
+                
+                const response = await fetch('/api/races/async');
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'データ取得に失敗しました');
+                }
+                
+                // Step 2: 基本レース情報表示
+                updateLoadingProgress('表示準備', 2, 4, 'レース情報を準備中...');
+                await new Promise(resolve => setTimeout(resolve, 500)); // UX向上のための少しの待機
+                
+                const races = data.races;
+                displayRaces(races);
+                
+                // 統計情報更新
+                updateStats(races);
+                
+                // Step 3: AI予想データ取得
+                updateLoadingProgress('AI予想計算', 3, 4, 'AI予想を計算中...');
+                await loadPredictions(races);
+                
+                // Step 4: 完了
+                updateLoadingProgress('完了', 4, 4, `${races.length}件のレースを取得完了`);
+                
+                // ローディングを隠してレースグリッドを表示
+                setTimeout(() => {
+                    loadingIndicator.style.display = 'none';
+                    raceGrid.style.display = 'grid';
+                    
+                    // ホバー効果を再設定
+                    setupHoverEffects();
+                }, 1000);
+                
+            } catch (error) {
+                console.error('データ読み込みエラー:', error);
+                showError(error.message);
+            }
+        }
+
+        // 進捗更新
+        function updateLoadingProgress(step, progress, total, message) {
+            const progressPercent = (progress / total) * 100;
+            
+            document.getElementById('loading-step').textContent = step;
+            document.getElementById('loading-progress').textContent = progress;
+            document.getElementById('loading-total').textContent = total;
+            document.getElementById('loading-message').textContent = message;
+            document.getElementById('progress-fill').style.width = `${progressPercent}%`;
+        }
+
+        // レース表示
+        function displayRaces(races) {
+            const raceGrid = document.getElementById('race-grid');
+            raceGrid.innerHTML = '';
+            
+            races.forEach(race => {
+                const raceCard = createRaceCard(race);
+                raceGrid.appendChild(raceCard);
+            });
+        }
+
+        // レースカード作成
+        function createRaceCard(race) {
+            const div = document.createElement('div');
+            div.className = `race-card ${race.is_finished ? 'finished' : ''}`;
+            div.onclick = () => {
+                if (!race.is_finished) {
+                    location.href = `/predict/${race.race_id}`;
+                }
+            };
+            
+            div.innerHTML = `
+                <div class="race-venue">
+                    ${race.venue_name}
+                    ${race.is_finished ? '<span class="finished-label">終了</span>' : ''}
+                </div>
+                <div class="race-info">
+                    <div class="race-number">${race.race_number}R</div>
+                    <div class="race-time">${race.start_time}</div>
+                </div>
+                ${race.race_title ? `<div class="race-title">${race.race_title}</div>` : ''}
+                <div id="prediction-${race.race_id}" class="prediction-section" style="display: none;">
+                    <!-- 予想データは後で追加 -->
+                </div>
+            `;
+            
+            return div;
+        }
+
+        // AI予想データ取得
+        async function loadPredictions(races) {
+            try {
+                const response = await fetch('/api/races');
+                const data = await response.json();
+                
+                if (data.success && data.races) {
+                    data.races.forEach(fullRace => {
+                        if (fullRace.prediction) {
+                            updateRacePrediction(fullRace);
+                        }
+                    });
+                }
+            } catch (error) {
+                console.warn('予想データ取得失敗:', error);
+                // 予想データ取得失敗は致命的エラーではないので続行
+            }
+        }
+
+        // レース予想更新
+        function updateRacePrediction(race) {
+            const predictionSection = document.getElementById(`prediction-${race.race_id}`);
+            if (!predictionSection || !race.prediction) return;
+            
+            const prediction = race.prediction;
+            const result = race.result;
+            
+            let html = '';
+            
+            // 予想データ
+            if (prediction) {
+                const confidenceStars = generateConfidenceStars(prediction.confidence);
+                
+                html += `
+                    <div class="prediction-row">
+                        <span class="prediction-label">AI予想:</span>
+                        <div class="prediction-value">
+                            ${prediction.predicted_win}号艇
+                            <div class="confidence-stars">${confidenceStars}</div>
+                        </div>
+                    </div>
+                `;
+                
+                if (prediction.predicted_place && prediction.predicted_place.length > 0) {
+                    html += `
+                        <div class="prediction-row">
+                            <span class="prediction-label">複勝:</span>
+                            <span class="prediction-value">
+                                ${prediction.predicted_place.slice(0, 3).join('-')}号艇
+                            </span>
+                        </div>
+                    `;
+                }
+            }
+            
+            // 結果データ
+            if (result) {
+                html += `
+                    <div class="prediction-row">
+                        <span class="prediction-label">実際:</span>
+                        <div class="vs-display">
+                            ${prediction ? `<span class="prediction-value">${prediction.predicted_win}号艇</span><span class="vs-arrow">→</span>` : ''}
+                            <span class="result-value">
+                                ${result.winning_boat}号艇
+                                ${prediction ? `<span class="hit-indicator ${prediction.predicted_win == result.winning_boat ? 'hit' : 'miss'}">${prediction.predicted_win == result.winning_boat ? '✓' : '✗'}</span>` : ''}
+                            </span>
+                        </div>
+                    </div>
+                `;
+                
+                if (result.place_results && result.place_results.length > 0) {
+                    html += `
+                        <div class="prediction-row">
+                            <span class="prediction-label">着順:</span>
+                            <span class="result-value">
+                                ${result.place_results.slice(0, 3).join('-')}号艇
+                            </span>
+                        </div>
+                    `;
+                }
+            }
+            
+            if (html) {
+                predictionSection.innerHTML = html;
+                predictionSection.style.display = 'block';
+            }
+        }
+
+        // 信頼度星生成
+        function generateConfidenceStars(confidence) {
+            const totalStars = 5;
+            const filledStars = Math.floor((confidence || 0.5) * totalStars);
+            const emptyStars = totalStars - filledStars;
+            
+            return '★'.repeat(filledStars) + '☆'.repeat(emptyStars);
+        }
+
+        // 統計情報更新
+        function updateStats(races) {
+            const totalRaces = races.length;
+            const confirmedTimes = races.filter(race => race.start_time !== '未定').length;
+            const venues = new Set(races.map(race => race.venue_name)).size;
+            
+            document.querySelector('.stats').innerHTML = `
+                <div class="stat-item">
+                    <div class="stat-number">${totalRaces}</div>
+                    <div class="stat-label">本日開催レース数</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">${confirmedTimes}</div>
+                    <div class="stat-label">発走時刻確定</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">${venues}</div>
+                    <div class="stat-label">開催場数</div>
+                </div>
+            `;
+        }
+
+        // エラー表示
+        function showError(message) {
+            const loadingIndicator = document.getElementById('loading-indicator');
+            const errorSection = document.getElementById('error-section');
+            const errorText = document.getElementById('error-text');
+            
+            loadingIndicator.style.display = 'none';
+            errorText.textContent = `❌ ${message}`;
+            errorSection.style.display = 'block';
+        }
+
+        // ホバー効果設定
+        function setupHoverEffects() {
+            document.querySelectorAll('.race-card').forEach(card => {
+                card.addEventListener('mouseenter', function() {
+                    const isDark = document.body.getAttribute('data-theme') === 'dark';
+                    this.style.background = isDark ? 
+                        'linear-gradient(135deg, #3d3d3d 0%, #4a4a4a 100%)' :
+                        'linear-gradient(135deg, #ffffff 0%, #f8f9ff 100%)';
+                });
+                
+                card.addEventListener('mouseleave', function() {
+                    this.style.background = '';
+                });
+            });
+        }
 
         // 自動リロード（5分間隔）
         setTimeout(function() {
             location.reload();
         }, 300000);
-
-        // レースカードホバー効果（テーマ対応）
-        document.querySelectorAll('.race-card').forEach(card => {
-            card.addEventListener('mouseenter', function() {
-                const isDark = document.body.getAttribute('data-theme') === 'dark';
-                this.style.background = isDark ? 
-                    'linear-gradient(135deg, #3d3d3d 0%, #4a4a4a 100%)' :
-                    'linear-gradient(135deg, #ffffff 0%, #f8f9ff 100%)';
-            });
-            
-            card.addEventListener('mouseleave', function() {
-                this.style.background = '';
-            });
-        });
     </script>
 </body>
 </html>
