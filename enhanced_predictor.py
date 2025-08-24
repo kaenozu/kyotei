@@ -203,23 +203,30 @@ class EnhancedPredictor:
                     score = self._calculate_boat_score(prog_boat, prev_boat, preview)
                     predictions[boat_num] = score
                     
-                    # レーサー詳細データ（テンプレート互換性を確保）
+                    # レーサー詳細データ（テンプレート互換性を確保、None値を完全排除）
+                    analysis = self._generate_analysis(prog_boat, prev_boat, boat_num)
+                    
                     racer_info = {
                         'number': boat_num,
                         'name': prog_boat.get('racer_name', '不明'),
-                        'prediction': score,
-                        # テンプレート互換フィールド
-                        'win_rate': prog_boat.get('racer_national_top_1_percent', 0),
-                        'local_win_rate': prog_boat.get('racer_local_top_1_percent', 0),
-                        'place_rate': prog_boat.get('racer_national_top_2_percent', 0),
-                        'average_st': prev_boat.get('racer_start_timing', 0.17),
+                        'prediction': score if score is not None else 0.0,
+                        # テンプレート互換フィールド（None値を完全に排除）
+                        'win_rate': prog_boat.get('racer_national_top_1_percent', 0) or 0,
+                        'local_win_rate': prog_boat.get('racer_local_top_1_percent', 0) or 0,
+                        'place_rate': prog_boat.get('racer_national_top_2_percent', 0) or 0,
+                        'average_st': prev_boat.get('racer_start_timing', 0.17) or 0.17,
                         # 分析用の詳細データ
-                        'national_win_rate': prog_boat.get('racer_national_top_1_percent', 0),
-                        'motor_rate': prog_boat.get('racer_assigned_motor_top_2_percent', 0),
-                        'boat_rate': prog_boat.get('racer_assigned_boat_top_2_percent', 0),
-                        'start_timing': prev_boat.get('racer_start_timing', 0.17),
-                        'exhibition_time': prev_boat.get('racer_exhibition_time', 0),
-                        'analysis': self._generate_analysis(prog_boat, prev_boat, boat_num)
+                        'national_win_rate': prog_boat.get('racer_national_top_1_percent', 0) or 0,
+                        'motor_rate': prog_boat.get('racer_assigned_motor_top_2_percent', 0) or 0,
+                        'boat_rate': prog_boat.get('racer_assigned_boat_top_2_percent', 0) or 0,
+                        'start_timing': prev_boat.get('racer_start_timing', 0.17) or 0.17,
+                        'exhibition_time': prev_boat.get('racer_exhibition_time', 0) or 0,
+                        'analysis': analysis if analysis is not None else {
+                            'base_strength': 0.0,
+                            'lane_advantage': 0.15,
+                            'local_adaptation': 0.0,
+                            'st_factor': 1.0
+                        }
                     }
                     racer_data.append(racer_info)
             
