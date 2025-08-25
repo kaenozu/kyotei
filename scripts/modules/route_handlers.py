@@ -111,15 +111,29 @@ class RouteHandlers:
             start_time = race_data.get('race_closed_at', '未定')
             race_title = race_data.get('race_title', '')
             
-            # 予想計算（データベースから取得した場合は保存済みの予想を使用）
-            if not prediction_result:
-                # 強化システムを優先、フォールバックで従来システム
-                enhanced_predictor = self.EnhancedPredictor()
-                prediction_result = enhanced_predictor.calculate_enhanced_prediction(venue_id, race_number, 'today')
-                
-                if not prediction_result:
-                    logger.warning("強化予想システム失敗、従来システムを使用")
-                    prediction_result = calculate_prediction(race_data)
+            # 予想計算（常に最新の予想を計算し、古いデータベース予想は参考程度に）
+            enhanced_predictor = self.EnhancedPredictor()
+            new_prediction = enhanced_predictor.calculate_enhanced_prediction(venue_id, race_number, 'today')
+            
+            logger.info(f"予想詳細 {venue_name} {race_number}R - DB予想:{prediction_result is not None}, 新予想:{new_prediction is not None}")
+            
+            if new_prediction:
+                prediction_result = new_prediction
+                logger.info(f"新しい予想使用 {venue_name} {race_number}R: 推奨={new_prediction.get('recommended_win')}, 複勝={new_prediction.get('recommended_place')}, 信頼度={new_prediction.get('confidence', 0):.6f}")
+                # 新しい予想をデータベースに保存/更新
+                if not is_from_database:
+                    try:
+                        tracker = self.AccuracyTracker()
+                        tracker.save_race_details(race_data, prediction_result)
+                        logger.info(f"新しい予想をデータベースに保存: {venue_name} {race_number}R")
+                    except Exception as e:
+                        logger.warning(f"予想保存エラー: {e}")
+            elif not prediction_result:
+                # 新しい計算も失敗し、データベース予想もない場合のフォールバック
+                logger.warning("強化予想システム失敗、従来システムを使用")
+                prediction_result = calculate_prediction(race_data)
+            else:
+                logger.info(f"データベース予想使用: 推奨={prediction_result.get('recommended_win')}, 信頼度={prediction_result.get('confidence', 0):.6f}")
                 
                 # 予想データとレース詳細データを保存
                 if not is_from_database:
@@ -147,7 +161,8 @@ class RouteHandlers:
                                  predictions=prediction_result['predictions'],
                                  recommended_win=prediction_result['recommended_win'],
                                  recommended_place=prediction_result['recommended_place'],
-                                 confidence=prediction_result['confidence'])
+                                 confidence=prediction_result['confidence'],
+                                 betting_recommendations=prediction_result.get('betting_recommendations'))
         
         except Exception as e:
             logger.error(f"予想ページエラー: {e}")
@@ -156,6 +171,7 @@ class RouteHandlers:
     
     def api_races(self):
         """レース一覧API（キャッシュ機能付き）"""
+        logger.info("=== api_races実行開始 ===")
         try:
             # キャッシュからデータを取得してみる
             cached_result = self._get_cached_race_list()
@@ -237,6 +253,7 @@ class RouteHandlers:
             # 全レースの詳細予想を並列計算
             logger.info("詳細予想システム並列実行中...")
             enhanced_predictions = self._calculate_enhanced_predictions_parallel(data['programs'])
+            logger.info(f"並列計算結果: {len(enhanced_predictions)}件の予想を取得")
             
             for program in data['programs']:
                 venue_name = VENUE_MAPPING.get(program['race_stadium_number'], '不明')
@@ -253,16 +270,31 @@ class RouteHandlers:
                 prediction = prediction_data.get(race_key)
                 result = result_data.get(race_key) if is_finished and race_time else None
                 
-                # 詳細予想システムの結果を使用（簡易予想を廃止）
-                if not prediction:
-                    raw_prediction = enhanced_predictions.get(race_key, {
+                # 詳細予想システムの結果を優先使用（データベース予想より新しい並行処理予想を優先）
+                if race_key in enhanced_predictions:
+                    raw_prediction = enhanced_predictions[race_key]
+                    logger.info(f"並列計算予想使用 {venue_name} {race_number}R: 推奨={raw_prediction.get('recommended_win')}, 複勝={raw_prediction.get('recommended_place')}")
+                    prediction = normalize_prediction_data(raw_prediction)
+                    
+                    # 新しく計算した予想をデータベースに保存
+                    try:
+                        tracker = self.AccuracyTracker()
+                        tracker.save_race_details(program, raw_prediction)
+                        logger.debug(f"新しい予想をデータベースに保存: {venue_name} {race_number}R")
+                    except Exception as e:
+                        logger.warning(f"予想保存エラー {venue_name} {race_number}R: {e}")
+                elif prediction:
+                    logger.debug(f"データベース予想使用 {venue_name} {race_number}R")
+                    prediction = normalize_prediction_data(prediction)
+                else:
+                    # フォールバック予想
+                    raw_prediction = {
                         'predicted_win': 1,
                         'predicted_place': [1, 2, 3],
                         'confidence': 0.5
-                    })
+                    }
+                    logger.info(f"デフォルト予想使用 {venue_name} {race_number}R")
                     prediction = normalize_prediction_data(raw_prediction)
-                else:
-                    prediction = normalize_prediction_data(prediction)
                 
                 race_info = {
                     'venue_id': venue_id,
@@ -434,14 +466,20 @@ class RouteHandlers:
             # 自動で実際の結果を取得・更新
             self._auto_update_results(tracker)
             
-            # 的中率計算
-            accuracy_data = tracker.calculate_accuracy()
+            # 的中率計算（日付指定対応）
+            accuracy_data = tracker.calculate_accuracy(target_date=date)
+            
+            # 日付フォーマット
+            date_obj = datetime.strptime(date, '%Y-%m-%d')
+            current_date_formatted = date_obj.strftime('%Y年%m月%d日')
             
             return render_template('accuracy_report.html',
                                  summary=accuracy_data['summary'],
                                  races=accuracy_data['races'],
                                  venues=accuracy_data['venues'],
                                  current_time=datetime.now().strftime('%Y年%m月%d日 %H:%M'),
+                                 current_date=date,
+                                 current_date_formatted=current_date_formatted,
                                  today=datetime.now().strftime('%Y-%m-%d'),
                                  auto_updated=True)
         
@@ -481,8 +519,31 @@ class RouteHandlers:
                     results_generated = 0
                     
                     for pred_id, venue_id, venue_name, race_number, predicted_win, predicted_place_json in predictions:
-                        # 朝のレース（11時前）は全て終了とみなす
-                        if current_time.hour >= 11:
+                        # レースが実際に終了しているかを判定（発走時間＋15分後）
+                        race_finished = False
+                        
+                        # データベースからrace_dataを取得してstart_timeをチェック
+                        cursor.execute("""
+                            SELECT race_data FROM race_details 
+                            WHERE venue_id = ? AND race_number = ? AND race_date = ?
+                        """, (venue_id, race_number, race_date))
+                        
+                        race_data_row = cursor.fetchone()
+                        if race_data_row and race_data_row[0]:
+                            try:
+                                race_data = json.loads(race_data_row[0])
+                                start_time_str = race_data.get('race_closed_at')
+                                
+                                if start_time_str:
+                                    # start_time_strは "2025-08-25 15:19:00" 形式
+                                    start_time = datetime.strptime(start_time_str, '%Y-%m-%d %H:%M:%S')
+                                    # 15分のマージンを追加（レース終了まで）
+                                    race_end_time = start_time + timedelta(minutes=15)
+                                    race_finished = current_time >= race_end_time
+                            except (json.JSONDecodeError, ValueError, TypeError):
+                                race_finished = False
+                        
+                        if race_finished:
                             # 既存の結果をチェック
                             cursor.execute("""
                                 SELECT id FROM race_results 
@@ -659,16 +720,24 @@ class RouteHandlers:
             return None
     
     def _race_sort_key(self, race):
-        """レースソートキー"""
+        """レースソートキー（完全タイムスタンプ対応版）"""
         # 発走時刻を解析して時間順にソート
         start_time = race['start_time']
-        if start_time == '未定':
+        if start_time == '未定' or not start_time:
             time_value = 99999  # 未定は最後
         else:
             try:
-                # HH:MM形式を分に変換
-                time_parts = start_time.split(':')
-                if len(time_parts) == 2:
+                # 完全なタイムスタンプ形式（YYYY-MM-DD HH:MM:SS）に対応
+                if ' ' in start_time:
+                    # "2025-08-25 15:19:00" 形式
+                    time_part = start_time.split(' ')[1]  # "15:19:00"
+                    time_parts = time_part.split(':')
+                    hours = int(time_parts[0])
+                    minutes = int(time_parts[1])
+                    time_value = hours * 60 + minutes
+                elif ':' in start_time:
+                    # "HH:MM" または "HH:MM:SS" 形式
+                    time_parts = start_time.split(':')
                     hours = int(time_parts[0])
                     minutes = int(time_parts[1])
                     time_value = hours * 60 + minutes
@@ -697,7 +766,14 @@ class RouteHandlers:
                 prediction = enhanced_predictor.calculate_enhanced_prediction(venue_id, race_number, 'today')
                 
                 if not prediction:
+                    logger.warning(f"並列計算でEnhancedPredictor失敗、フォールバック使用: {venue_id}_{race_number}")
                     prediction = calculate_prediction(race_data)
+                elif race_key == '14_9':  # 鳴門9Rのデバッグ
+                    logger.info(f"並列計算 鳴門9R: 推奨={prediction.get('recommended_win')}, 複勝={prediction.get('recommended_place')}, 信頼度={prediction.get('confidence', 0):.6f}")
+                elif race_key == '22_1':  # 福岡1Rのデバッグ
+                    logger.info(f"並列計算 福岡1R: 推奨={prediction.get('recommended_win')}, 複勝={prediction.get('recommended_place')}, 信頼度={prediction.get('confidence', 0):.6f}")
+                elif race_key == '6_3':  # 浜名湖3Rのデバッグ
+                    logger.info(f"並列計算 浜名湖3R: 推奨={prediction.get('recommended_win')}, 複勝={prediction.get('recommended_place')}, 信頼度={prediction.get('confidence', 0):.6f}")
                 
                 return (race_key, prediction)
             except Exception as e:

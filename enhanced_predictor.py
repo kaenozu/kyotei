@@ -43,17 +43,17 @@ class EnhancedPredictor:
                 logger.error(f"ML予想システム初期化エラー: {e}")
                 self.ml_predictor = None
         
-        # 重み係数（競艇実情反映版）
+        # 重み係数（実力完全重視版）
         self.weights = {
-            'position_advantage': 0.45,     # コース別有利性（最重要）
-            'national_win_rate': 0.12,      # 全国勝率
-            'local_win_rate': 0.08,         # 当地勝率
-            'start_timing': 0.12,           # スタートタイミング（重要）
+            'position_advantage': 0.15,     # コース有利性（大幅削減）
+            'national_win_rate': 0.30,      # 全国勝率（最重要）
+            'local_win_rate': 0.20,         # 当地勝率（重要）
+            'start_timing': 0.15,           # スタートタイミング（重要）
             'motor_performance': 0.08,      # モーター性能
             'boat_performance': 0.05,       # ボート性能
-            'exhibition_time': 0.05,        # 展示タイム
-            'weather_conditions': 0.03,     # 気象条件
-            'ml_prediction': 0.02           # ML予想（補助的）
+            'exhibition_time': 0.04,        # 展示タイム
+            'weather_conditions': 0.02,     # 気象条件
+            'ml_prediction': 0.01           # ML予想（最小限）
         }
         
         # 的中率データキャッシュ
@@ -229,6 +229,17 @@ class EnhancedPredictor:
                     }
                     racer_data.append(racer_info)
             
+            # スコア正規化（合計100%になるよう調整）
+            total_score = sum(predictions.values())
+            if total_score > 0:
+                # 正規化して合計100%に
+                normalized_predictions = {boat: (score/total_score) for boat, score in predictions.items()}
+                predictions = normalized_predictions
+                
+                # レーサーデータも正規化
+                for racer in racer_data:
+                    racer['prediction'] = racer['prediction'] / total_score
+            
             # ソート
             sorted_predictions = sorted(predictions.items(), key=lambda x: x[1], reverse=True)
             racer_data.sort(key=lambda x: x['prediction'], reverse=True)
@@ -239,6 +250,9 @@ class EnhancedPredictor:
             
             # 信頼度計算
             confidence = self._calculate_confidence(predictions, preview)
+            
+            # 賭け方推奨を計算
+            betting_recommendations = self._calculate_betting_recommendations(predictions, confidence, sorted_predictions)
             
             return {
                 'predictions': {str(boat): score for boat, score in predictions.items()},
@@ -253,6 +267,7 @@ class EnhancedPredictor:
                     'temperature': preview.get('race_temperature', 25),
                     'water_temp': preview.get('race_water_temperature', 25)
                 },
+                'betting_recommendations': betting_recommendations,
                 'enhanced': True,
                 'api_sources': ['BoatraceOpenAPI_Programs', 'BoatraceOpenAPI_Previews']
             }
@@ -267,14 +282,14 @@ class EnhancedPredictor:
             score = 0.0
             boat_number = prog_boat.get('racer_boat_number', 1)
             
-            # コース別有利性（実績統計版：実際の勝率を反映）
+            # コース別有利性（実力逆転可能版：実力差による逆転を積極的に許可）
             position_advantages = {
-                1: 0.50,  # 1号艇：統計上約50%の勝率
-                2: 0.15,  # 2号艇：統計上約15%の勝率
-                3: 0.12,  # 3号艇：統計上約12%の勝率  
-                4: 0.10,  # 4号艇：統計上約10%の勝率
-                5: 0.08,  # 5号艇：統計上約8%の勝率
-                6: 0.05   # 6号艇：統計上約5%の勝率
+                1: 0.3,   # 1号艇：軽微な有利性のみ
+                2: 0.2,   # 2号艇：わずかな有利性
+                3: 0.15,  # 3号艇：ほぼ中立  
+                4: 0.1,   # 4号艇：わずかな不利
+                5: 0.05,  # 5号艇：軽微な不利
+                6: 0.0    # 6号艇：実力のみで評価
             }
             position_advantage = position_advantages.get(boat_number, 0.15)
             score += position_advantage * self.weights['position_advantage']
@@ -305,12 +320,10 @@ class EnhancedPredictor:
             ml_score = self._get_ml_prediction(prog_boat, race_conditions, boat_number)
             score += ml_score * self.weights['ml_prediction']
             
-            # 的中率履歴要因（新追加）
-            venue_id = race_conditions.get('race_stadium_number', 1)
-            accuracy_factor = self.calculate_accuracy_factor(venue_id)
-            # 的中率が高い会場では保守的に、低い会場では積極的に予想を調整
-            accuracy_adjustment = (accuracy_factor - 0.5) * 0.5  # -0.15 〜 +0.15 の調整
-            score += accuracy_adjustment * self.weights['accuracy_history']
+            # 的中率履歴要因は削除（weightsから除去済み）
+            # venue_id = race_conditions.get('race_stadium_number', 1)
+            # accuracy_factor = self.calculate_accuracy_factor(venue_id)
+            # accuracy_adjustment = (accuracy_factor - 0.5) * 0.5  # 削除済み
             
             # ランダム性を削除（予想の安定性確保のため）
             # randomness = (random.random() - 0.5) * 0.02  # 削除: 順位変動の原因
@@ -333,9 +346,9 @@ class EnhancedPredictor:
         # 基本実力（国体勝率をベースに計算）
         analysis['base_strength'] = national_win
         
-        # 艇番有利性（コース別有利性を計算）
+        # 艇番有利性（統計的勝率に合わせて調整）
         position_advantages = {
-            1: 0.35, 2: 0.18, 3: 0.16, 4: 0.10, 5: 0.08, 6: 0.06
+            1: 0.50, 2: 0.15, 3: 0.12, 4: 0.10, 5: 0.08, 6: 0.05
         }
         analysis['lane_advantage'] = position_advantages.get(boat_number, 0.15)
         
@@ -655,6 +668,117 @@ class EnhancedPredictor:
         except Exception as e:
             logger.error(f"信頼度計算エラー: {e}")
             return 0.5
+    
+    def _calculate_betting_recommendations(self, predictions: Dict, confidence: float, sorted_predictions: List) -> Dict:
+        """賭け方推奨を計算"""
+        try:
+            recommendations = {}
+            
+            # 基本情報
+            top_boat = sorted_predictions[0][0] if sorted_predictions else 1
+            top_score = sorted_predictions[0][1] if sorted_predictions else 0.5
+            second_boat = sorted_predictions[1][0] if len(sorted_predictions) > 1 else 2
+            third_boat = sorted_predictions[2][0] if len(sorted_predictions) > 2 else 3
+            
+            # 信頼度ベースの推奨
+            if confidence >= 0.7:
+                risk_level = "高信頼度"
+                primary_bet = "単勝"
+                strategy = f"{top_boat}号艇の単勝がおすすめ"
+                risk_icon = "🔥"
+            elif confidence >= 0.5:
+                risk_level = "中信頼度"
+                primary_bet = "複勝"
+                strategy = f"{top_boat}号艇の複勝で安定狙い"
+                risk_icon = "⚖️"
+            else:
+                risk_level = "低信頼度"
+                primary_bet = "様子見"
+                strategy = "混戦のため少額または見送り推奨"
+                risk_icon = "⚠️"
+            
+            # リスク別推奨
+            risk_recommendations = {
+                "conservative": {
+                    "label": "安全志向",
+                    "bet_type": "複勝",
+                    "target": f"{top_boat}号艇",
+                    "reason": "的中率重視",
+                    "icon": "🛡️"
+                },
+                "balanced": {
+                    "label": "バランス型", 
+                    "bet_type": "単勝+複勝",
+                    "target": f"{top_boat}号艇",
+                    "reason": "バランス良く",
+                    "icon": "⚖️"
+                },
+                "aggressive": {
+                    "label": "攻撃志向",
+                    "bet_type": "三連単",
+                    "target": f"{top_boat}-{second_boat}-{third_boat}",
+                    "reason": "高配当狙い",
+                    "icon": "🚀"
+                }
+            }
+            
+            # 三連単推奨組み合わせ（上位3艇の順列）
+            trifecta_combinations = [
+                f"{top_boat}-{second_boat}-{third_boat}",
+                f"{top_boat}-{third_boat}-{second_boat}",
+                f"{second_boat}-{top_boat}-{third_boat}"
+            ]
+            
+            # 賭け金配分推奨（10,000円ベース）
+            total_budget = 10000
+            if confidence >= 0.7:
+                allocation = {
+                    "単勝": int(total_budget * 0.6),
+                    "複勝": int(total_budget * 0.3), 
+                    "三連単": int(total_budget * 0.1)
+                }
+            elif confidence >= 0.5:
+                allocation = {
+                    "単勝": int(total_budget * 0.3),
+                    "複勝": int(total_budget * 0.5),
+                    "三連単": int(total_budget * 0.2)
+                }
+            else:
+                allocation = {
+                    "単勝": int(total_budget * 0.2),
+                    "複勝": int(total_budget * 0.6),
+                    "三連単": int(total_budget * 0.2)
+                }
+            
+            # まとめ
+            recommendations = {
+                "primary": {
+                    "risk_level": risk_level,
+                    "bet_type": primary_bet,
+                    "strategy": strategy,
+                    "icon": risk_icon
+                },
+                "risk_based": risk_recommendations,
+                "trifecta_combos": trifecta_combinations,
+                "budget_allocation": allocation,
+                "confidence_level": confidence,
+                "top_prediction": {
+                    "boat": top_boat,
+                    "probability": round(top_score * 100, 1)
+                }
+            }
+            
+            return recommendations
+            
+        except Exception as e:
+            logger.error(f"賭け方推奨計算エラー: {e}")
+            return {
+                "primary": {"risk_level": "不明", "bet_type": "単勝", "strategy": "基本推奨", "icon": "🎯"},
+                "risk_based": {},
+                "trifecta_combos": ["1-2-3"],
+                "budget_allocation": {"単勝": 5000, "複勝": 3000, "三連単": 2000},
+                "confidence_level": 0.5
+            }
 
 # メイン実行部
 if __name__ == "__main__":

@@ -78,7 +78,7 @@ def initialize_components(app, logger):
         # sys.pathにプロジェクトルートディレクトリを追加
         import sys
         # scripts/modules/ から見て、プロジェクトルートは ../../ 
-        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
         if project_root not in sys.path:
             sys.path.insert(0, project_root)
         
@@ -89,8 +89,9 @@ def initialize_components(app, logger):
         class AccuracyTracker(OriginalAccuracyTracker):
             def __init__(self):
                 super().__init__()
-                # scripts/modules/から相対パスでcache/にアクセス
-                self.db_path = '../cache/accuracy_tracker.db'
+                # プロジェクトルートからの絶対パスでcache/にアクセス
+                project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+                self.db_path = os.path.join(project_root, 'cache', 'accuracy_tracker.db')
         
         logger.info("[OK] 外部クラスインポート成功")
         
@@ -99,7 +100,9 @@ def initialize_components(app, logger):
         # フォールバック用に実際のメソッドを持つダミークラス
         class AccuracyTracker:
             def __init__(self):
-                self.db_path = '../cache/accuracy_tracker.db'
+                # プロジェクトルートからの絶対パスでcache/にアクセス
+                project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
+                self.db_path = os.path.join(project_root, 'cache', 'accuracy_tracker.db')
             def calculate_accuracy(self):
                 return {'summary': {'total_predictions': 0, 'win_hits': 0, 'win_accuracy': 0}, 'races': [], 'venues': {}}
             def save_prediction(self, *args):

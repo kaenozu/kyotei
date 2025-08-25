@@ -413,6 +413,56 @@
                 </div>
             </div>
         </div>
+
+        {% if betting_recommendations %}
+        <!-- 賭け方推奨セクション -->
+        <div class="betting-recommendations" style="background: linear-gradient(135deg, #6f42c1 0%, #8e44ad 100%); color: white; padding: 25px; border-radius: 10px; margin-top: 20px;">
+            <div class="rec-title" style="font-size: 1.4em; font-weight: bold; text-align: center; margin-bottom: 20px;">
+                {{ betting_recommendations.primary.icon }} 賭け方推奨
+            </div>
+            
+            <!-- メイン推奨 -->
+            <div style="text-align: center; background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                <div style="font-size: 1.1em; margin-bottom: 5px;">{{ betting_recommendations.primary.risk_level }}</div>
+                <div style="font-size: 1.3em; font-weight: bold; color: #fff;">{{ betting_recommendations.primary.strategy }}</div>
+            </div>
+
+            <!-- リスク別推奨 -->
+            <div class="rec-title" style="font-size: 1.2em; margin-bottom: 15px;">📊 リスク別推奨</div>
+            <div class="rec-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                {% for key, risk in betting_recommendations.risk_based.items() %}
+                <div class="risk-item" style="text-align: center; background: rgba(255,255,255,0.1); padding: 12px; border-radius: 6px;">
+                    <div style="font-size: 1.5em; margin-bottom: 5px;">{{ risk.icon }}</div>
+                    <div style="font-weight: bold; margin-bottom: 3px;">{{ risk.label }}</div>
+                    <div style="font-size: 0.9em; opacity: 0.9;">{{ risk.bet_type }}</div>
+                    <div style="font-size: 0.8em; margin-top: 3px;">{{ risk.target }}</div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- 三連単推奨 -->
+            <div class="rec-title" style="font-size: 1.2em; margin-bottom: 15px;">🎯 三連単推奨組み合わせ</div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 20px;">
+                {% for combo in betting_recommendations.trifecta_combos %}
+                <div style="text-align: center; background: rgba(255,255,255,0.1); padding: 10px; border-radius: 6px; font-weight: bold;">
+                    {{ combo }}
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- 賭け金配分推奨 -->
+            <div class="rec-title" style="font-size: 1.2em; margin-bottom: 15px;">💰 賭け金配分推奨（10,000円ベース）</div>
+            <div class="rec-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px;">
+                {% for bet_type, amount in betting_recommendations.budget_allocation.items() %}
+                <div class="budget-item" style="text-align: center; background: rgba(255,255,255,0.1); padding: 12px; border-radius: 6px;">
+                    <div style="font-weight: bold; margin-bottom: 5px;">{{ bet_type }}</div>
+                    <div style="font-size: 1.2em; font-weight: bold;">{{ "{:,}".format(amount) }}円</div>
+                    <div style="font-size: 0.8em; opacity: 0.8;">{{ ((amount / 10000) * 100) | int }}%</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
         {% endif %}
         {% endif %}
     </div>
