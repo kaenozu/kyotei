@@ -43,17 +43,17 @@ class EnhancedPredictor:
                 logger.error(f"ML予想システム初期化エラー: {e}")
                 self.ml_predictor = None
         
-        # 重み係数（実力完全重視版）
+        # 重み係数（ML統合版）
         self.weights = {
-            'position_advantage': 0.15,     # コース有利性（大幅削減）
-            'national_win_rate': 0.30,      # 全国勝率（最重要）
-            'local_win_rate': 0.20,         # 当地勝率（重要）
-            'start_timing': 0.15,           # スタートタイミング（重要）
-            'motor_performance': 0.08,      # モーター性能
-            'boat_performance': 0.05,       # ボート性能
+            'position_advantage': 0.12,     # コース有利性（削減）
+            'national_win_rate': 0.25,      # 全国勝率（重要）
+            'local_win_rate': 0.18,         # 当地勝率（重要）
+            'start_timing': 0.13,           # スタートタイミング（重要）
+            'motor_performance': 0.07,      # モーター性能
+            'boat_performance': 0.04,       # ボート性能
             'exhibition_time': 0.04,        # 展示タイム
             'weather_conditions': 0.02,     # 気象条件
-            'ml_prediction': 0.01           # ML予想（最小限）
+            'ml_prediction': 0.15           # ML予想（大幅強化）
         }
         
         # 的中率データキャッシュ
