@@ -1,0 +1,27 @@
+{
+  "timestamp": "2025-08-23T13:54:23.682099",
+  "system_metrics": {
+    "timestamp": "2025-08-23 13:54:19.424406",
+    "races_processed_today": 118,
+    "current_automation_rate": 0.9406360311065328,
+    "current_accuracy_rate": 0.883695314157346,
+    "avg_processing_time": 77.82634596140306,
+    "cpu_usage": 75.5288454972467,
+    "memory_usage": 58.57880792962086,
+    "system_uptime": 55.61709761619568,
+    "current_roi": 1.172843867611085,
+    "active_operations": 6,
+    "errors_today": 0,
+    "last_error_time": null
+  },
+  "active_alerts_count": 30,
+  "critical_alerts_count": 5,
+  "warning_alerts_count": 25,
+  "operations_status": "INACTIVE",
+  "performance_summary": {
+    "automation_rate": 0.9406360311065328,
+    "accuracy_rate": 0.883695314157346,
+    "processing_efficiency": 61.08682701929847,
+    "resource_health": 24.471154502753294
+  }
+}

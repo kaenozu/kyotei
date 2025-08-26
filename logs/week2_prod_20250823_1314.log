@@ -1,0 +1,44 @@
+[2025-08-23 13:14:18] [INFO] === Week 2 Production Operation Starting ===
+[2025-08-23 13:14:18] [INFO] Session ID: week2_prod_20250823_1314
+[2025-08-23 13:14:18] [INFO] Target: 100 races/day
+[2025-08-23 13:14:18] [INFO] Daily Budget: 10,000 yen
+[2025-08-23 13:14:18] [INFO] Batch Size: 20 races/batch
+[2025-08-23 13:14:18] [INFO] Initializing production systems...
+[2025-08-23 13:14:18] [INFO]   [1/4] Initializing investment system...
+[2025-08-23 13:14:19] [INFO]     ✓ Investment system ready
+[2025-08-23 13:14:19] [INFO]   [2/4] Initializing monitoring system...
+[2025-08-23 13:14:19] [INFO]     ✓ Monitoring system ready
+[2025-08-23 13:14:19] [INFO]   [3/4] Initializing reporting system...
+[2025-08-23 13:14:21] [INFO]     ✓ Reporting system ready
+[2025-08-23 13:14:21] [INFO]   [4/4] Checking prediction system...
+[2025-08-23 13:14:21] [INFO]     Testing with 3 sample races...
+[2025-08-23 13:14:21] [INFO]     ✓ Prediction system operational (92.5% accuracy)
+[2025-08-23 13:14:21] [INFO] ✓ All systems initialized successfully
+[2025-08-23 13:14:21] [INFO] Daily operation plan: 5 batches
+[2025-08-23 13:14:21] [INFO] 
+--- Batch 1/5 Starting ---
+[2025-08-23 13:14:21] [INFO]   Processing 20 races in batch 1...
+[2025-08-23 13:14:21] [ERROR]     Prediction system error: No module named 'data.simple_models'
+[2025-08-23 13:14:21] [INFO]     Manual review: Race fallback_race_012 - Confidence 89.8%
+[2025-08-23 13:14:21] [INFO]     Manual review: Race fallback_race_008 - Confidence 89.4%
+[2025-08-23 13:14:21] [INFO]     Manual review: Race fallback_race_009 - Confidence 88.6%
+[2025-08-23 13:14:21] [INFO]     Manual review: Race fallback_race_020 - Confidence 88.3%
+[2025-08-23 13:14:21] [INFO]     Manual review: Race fallback_race_005 - Confidence 88.0%
+[2025-08-23 13:14:21] [INFO]     Manual review: Race fallback_race_006 - Confidence 87.6%
+[2025-08-23 13:14:21] [INFO]     Manual review: Race fallback_race_010 - Confidence 87.2%
+[2025-08-23 13:14:21] [INFO]     Manual review: Race fallback_race_002 - Confidence 86.4%
+[2025-08-23 13:14:21] [ERROR]   Batch 1 execution error: 'ProductionMonitor' object has no attribute 'record_batch_performance'
+[2025-08-23 13:14:21] [ERROR] Batch 1 failed - 'ProductionMonitor' object has no attribute 'record_batch_performance'
+[2025-08-23 13:14:21] [INFO] Handling batch 1 failure...
+[2025-08-23 13:14:21] [ERROR] Critical error - stopping operation
+[2025-08-23 13:14:21] [INFO] 
+=== Daily Operation Summary ===
+[2025-08-23 13:14:21] [INFO] Operation Duration: 0:00:02.723066
+[2025-08-23 13:14:21] [INFO] Races Processed: 0
+[2025-08-23 13:14:21] [INFO] Batches Completed: 1
+[2025-08-23 13:14:21] [INFO] Total Invested: 0 yen
+[2025-08-23 13:14:21] [INFO] Daily Profit: +0 yen
+[2025-08-23 13:14:21] [INFO] ROI: +0.0%
+[2025-08-23 13:14:21] [INFO] Budget Utilization: 0.0%
+[2025-08-23 13:14:21] [INFO] Daily summary saved: reports\week2_prod_20250823_1314_summary.json
+[2025-08-23 13:14:21] [INFO] Daily HTML report generated

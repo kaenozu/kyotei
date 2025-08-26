@@ -287,15 +287,25 @@ def calculate_prediction(race_data: Dict) -> Dict:
             recommended_win = max(predictions.items(), key=lambda x: x[1])[0]
             sorted_boats = sorted(predictions.items(), key=lambda x: x[1], reverse=True)
             recommended_place = [x[0] for x in sorted_boats[:3]]
+            
+            # 三連単推奨（上位3艇の最も可能性が高い順列）
+            top_3_boats = [x[0] for x in sorted_boats[:3]]
+            if len(top_3_boats) >= 3:
+                # 最も予想値が高い順に並べた組み合わせを推奨
+                recommended_trifecta = f"{top_3_boats[0]}-{top_3_boats[1]}-{top_3_boats[2]}"
+            else:
+                recommended_trifecta = "1-2-3"
         else:
             recommended_win = 1
             recommended_place = [1, 2, 3]
+            recommended_trifecta = "1-2-3"
         
         return {
             'predictions': predictions,
             'racers': racers,
             'recommended_win': recommended_win,
             'recommended_place': recommended_place,
+            'recommended_trifecta': recommended_trifecta,
             'confidence': 0.7
         }
     
@@ -306,6 +316,7 @@ def calculate_prediction(race_data: Dict) -> Dict:
             'racers': [],
             'recommended_win': 1,
             'recommended_place': [1, 2, 3],
+            'recommended_trifecta': "1-2-3",
             'confidence': 0.0
         }
 

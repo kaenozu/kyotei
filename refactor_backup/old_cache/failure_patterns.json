@@ -1,0 +1,535 @@
+[
+  {
+    "type": "winner_miss",
+    "predicted": 1,
+    "actual": 2,
+    "confidence": 0.88,
+    "venue_id": 22
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 1,
+    "actual": 4,
+    "confidence": 0.88,
+    "venue_id": 8
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 1,
+    "actual": 4,
+    "confidence": 0.88,
+    "venue_id": 11
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 1,
+    "actual": 3,
+    "confidence": 0.88,
+    "venue_id": 8
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 1,
+    "actual": 6,
+    "confidence": 0.88,
+    "venue_id": 23
+  },
+  {
+    "type": "upset_win",
+    "winner": 6,
+    "venue_id": 23,
+    "confidence": 0.88
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 1,
+    "actual": 6,
+    "confidence": 0.88,
+    "venue_id": 23
+  },
+  {
+    "type": "upset_win",
+    "winner": 6,
+    "venue_id": 23,
+    "confidence": 0.88
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 1,
+    "actual": 6,
+    "confidence": 0.88,
+    "venue_id": 2
+  },
+  {
+    "type": "upset_win",
+    "winner": 6,
+    "venue_id": 2,
+    "confidence": 0.88
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 1,
+    "actual": 6,
+    "confidence": 0.88,
+    "venue_id": 12
+  },
+  {
+    "type": "upset_win",
+    "winner": 6,
+    "venue_id": 12,
+    "confidence": 0.88
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 1,
+    "actual": 6,
+    "confidence": 0.88,
+    "venue_id": 2
+  },
+  {
+    "type": "upset_win",
+    "winner": 6,
+    "venue_id": 2,
+    "confidence": 0.88
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 1,
+    "actual": 2,
+    "confidence": 0.88,
+    "venue_id": 2
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 1,
+    "actual": 2,
+    "confidence": 0.88,
+    "venue_id": 2
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 1,
+    "actual": 2,
+    "confidence": 0.88,
+    "venue_id": 2
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 1,
+    "actual": 2,
+    "confidence": 0.88,
+    "venue_id": 3
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 1,
+    "actual": 3,
+    "confidence": 0.88,
+    "venue_id": 5
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 1,
+    "actual": 2,
+    "confidence": 0.88,
+    "venue_id": 2
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 1,
+    "actual": 2,
+    "confidence": 0.88,
+    "venue_id": 2
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 1,
+    "actual": 2,
+    "confidence": 0.88,
+    "venue_id": 3
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 1,
+    "actual": 3,
+    "confidence": 0.88,
+    "venue_id": 2
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 1,
+    "actual": 3,
+    "confidence": 0.88,
+    "venue_id": 2
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 1,
+    "actual": 5,
+    "confidence": 0.88,
+    "venue_id": 22
+  },
+  {
+    "type": "upset_win",
+    "winner": 5,
+    "venue_id": 22,
+    "confidence": 0.88
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 1,
+    "actual": 2,
+    "confidence": 0.88,
+    "venue_id": 8
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 1,
+    "actual": 2,
+    "confidence": 0.88,
+    "venue_id": 8
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 1,
+    "actual": 2,
+    "confidence": 0.5,
+    "venue_id": 3
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 1,
+    "actual": 4,
+    "confidence": 0.88,
+    "venue_id": 2
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 1,
+    "actual": 2,
+    "confidence": 0.88,
+    "venue_id": 12
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 1,
+    "actual": 4,
+    "confidence": 0.88,
+    "venue_id": 2
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 4,
+    "actual": 1,
+    "confidence": 0.7,
+    "venue_id": 8
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 2,
+    "actual": 1,
+    "confidence": 0.7,
+    "venue_id": 9
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 4,
+    "actual": 1,
+    "confidence": 0.7,
+    "venue_id": 9
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 4,
+    "actual": 5,
+    "confidence": 0.7,
+    "venue_id": 2
+  },
+  {
+    "type": "upset_win",
+    "winner": 5,
+    "venue_id": 2,
+    "confidence": 0.7
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 5,
+    "actual": 1,
+    "confidence": 0.7,
+    "venue_id": 2
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 3,
+    "actual": 1,
+    "confidence": 0.7,
+    "venue_id": 2
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 4,
+    "actual": 1,
+    "confidence": 0.7,
+    "venue_id": 2
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 2,
+    "actual": 1,
+    "confidence": 0.7,
+    "venue_id": 2
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 3,
+    "actual": 2,
+    "confidence": 0.7,
+    "venue_id": 5
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 3,
+    "actual": 2,
+    "confidence": 0.7,
+    "venue_id": 5
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 3,
+    "actual": 6,
+    "confidence": 0.7,
+    "venue_id": 12
+  },
+  {
+    "type": "upset_win",
+    "winner": 6,
+    "venue_id": 12,
+    "confidence": 0.7
+  },
+  {
+    "type": "upset_win",
+    "winner": 5,
+    "venue_id": 23,
+    "confidence": 0.7
+  },
+  {
+    "type": "upset_win",
+    "winner": 5,
+    "venue_id": 15,
+    "confidence": 0.7
+  },
+  {
+    "type": "upset_win",
+    "winner": 5,
+    "venue_id": 15,
+    "confidence": 0.7
+  },
+  {
+    "type": "upset_win",
+    "winner": 5,
+    "venue_id": 23,
+    "confidence": 0.7
+  },
+  {
+    "type": "upset_win",
+    "winner": 5,
+    "venue_id": 23,
+    "confidence": 0.7
+  },
+  {
+    "type": "upset_win",
+    "winner": 5,
+    "venue_id": 23,
+    "confidence": 0.7
+  },
+  {
+    "type": "upset_win",
+    "winner": 5,
+    "venue_id": 23,
+    "confidence": 0.7
+  },
+  {
+    "type": "upset_win",
+    "winner": 5,
+    "venue_id": 23,
+    "confidence": 0.7
+  },
+  {
+    "type": "upset_win",
+    "winner": 5,
+    "venue_id": 23,
+    "confidence": 0.7
+  },
+  {
+    "type": "upset_win",
+    "winner": 5,
+    "venue_id": 23,
+    "confidence": 0.7
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 1,
+    "actual": 5,
+    "confidence": 0.88,
+    "venue_id": 23
+  },
+  {
+    "type": "upset_win",
+    "winner": 5,
+    "venue_id": 23,
+    "confidence": 0.88
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 1,
+    "actual": 5,
+    "confidence": 0.88,
+    "venue_id": 23
+  },
+  {
+    "type": "upset_win",
+    "winner": 5,
+    "venue_id": 23,
+    "confidence": 0.88
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 1,
+    "actual": 2,
+    "confidence": 0.88,
+    "venue_id": 15
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 1,
+    "actual": 2,
+    "confidence": 0.88,
+    "venue_id": 5
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 6,
+    "actual": 3,
+    "confidence": 0.96,
+    "venue_id": 3
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 6,
+    "actual": 1,
+    "confidence": 0.96,
+    "venue_id": 3
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 6,
+    "actual": 5,
+    "confidence": 0.96,
+    "venue_id": 3
+  },
+  {
+    "type": "upset_win",
+    "winner": 5,
+    "venue_id": 3,
+    "confidence": 0.96
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 6,
+    "actual": 5,
+    "confidence": 0.96,
+    "venue_id": 3
+  },
+  {
+    "type": "upset_win",
+    "winner": 5,
+    "venue_id": 3,
+    "confidence": 0.96
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 6,
+    "actual": 4,
+    "confidence": 0.96,
+    "venue_id": 15
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 6,
+    "actual": 1,
+    "confidence": 0.96,
+    "venue_id": 12
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 1,
+    "actual": 6,
+    "confidence": 0.6085714285714285,
+    "venue_id": 12
+  },
+  {
+    "type": "upset_win",
+    "winner": 6,
+    "venue_id": 12,
+    "confidence": 0.6085714285714285
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 1,
+    "actual": 6,
+    "confidence": 0.6085714285714285,
+    "venue_id": 3
+  },
+  {
+    "type": "upset_win",
+    "winner": 6,
+    "venue_id": 3,
+    "confidence": 0.6085714285714285
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 1,
+    "actual": 6,
+    "confidence": 0.6085714285714285,
+    "venue_id": 5
+  },
+  {
+    "type": "upset_win",
+    "winner": 6,
+    "venue_id": 5,
+    "confidence": 0.6085714285714285
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 1,
+    "actual": 6,
+    "confidence": 0.6085714285714285,
+    "venue_id": 5
+  },
+  {
+    "type": "upset_win",
+    "winner": 6,
+    "venue_id": 5,
+    "confidence": 0.6085714285714285
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 1,
+    "actual": 2,
+    "confidence": 0.6085714285714285,
+    "venue_id": 24
+  },
+  {
+    "type": "winner_miss",
+    "predicted": 1,
+    "actual": 6,
+    "confidence": 0.6085714285714285,
+    "venue_id": 5
+  },
+  {
+    "type": "upset_win",
+    "winner": 6,
+    "venue_id": 5,
+    "confidence": 0.6085714285714285
+  }
+]

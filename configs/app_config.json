@@ -1,0 +1,37 @@
+{
+    "system": {
+        "name": "競艇予測システム",
+        "version": "2.0.0",
+        "environment": "production"
+    },
+    "prediction": {
+        "models": {
+            "random_forest": {
+                "n_estimators": 150,
+                "max_depth": 15,
+                "min_samples_split": 8,
+                "random_state": 42
+            },
+            "gradient_boosting": {
+                "n_estimators": 120,
+                "learning_rate": 0.08,
+                "max_depth": 8,
+                "random_state": 42
+            }
+        },
+        "ensemble_weights": {
+            "rf": 0.6,
+            "gb": 0.4
+        }
+    },
+    "database": {
+        "production_db": "cache/production.db",
+        "monitoring_db": "cache/monitoring.db"
+    },
+    "logging": {
+        "level": "INFO",
+        "file": "logs/production.log",
+        "max_bytes": 10485760,
+        "backup_count": 5
+    }
+}

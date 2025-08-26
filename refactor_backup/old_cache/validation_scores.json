@@ -1,0 +1,38 @@
+{
+  "xgb_optimized": {
+    "accuracy": 0.216,
+    "cv_mean": 0.24,
+    "cv_std": 0.027968235951204044,
+    "trained": true
+  },
+  "lgb_optimized": {
+    "accuracy": 0.228,
+    "cv_mean": 0.21600000000000003,
+    "cv_std": 0.038087618285561856,
+    "trained": true
+  },
+  "deep_neural_net": {
+    "accuracy": 0.292,
+    "cv_mean": 0.27866666666666673,
+    "cv_std": 0.015999999999999997,
+    "trained": true
+  },
+  "svm_rbf": {
+    "accuracy": 0.208,
+    "cv_mean": 0.20800000000000002,
+    "cv_std": 0.014236104336041742,
+    "trained": true
+  },
+  "gaussian_process": {
+    "accuracy": 0.104,
+    "cv_mean": 0.10800000000000001,
+    "cv_std": 0.010666666666666663,
+    "trained": true
+  },
+  "ultra_random_forest": {
+    "accuracy": 0.268,
+    "cv_mean": 0.296,
+    "cv_std": 0.02004439517116387,
+    "trained": true
+  }
+}

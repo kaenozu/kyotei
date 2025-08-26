@@ -1,0 +1,24 @@
+[2025-08-23 13:13:38] [INFO] === Week 2 Production Operation Starting ===
+[2025-08-23 13:13:38] [INFO] Session ID: week2_prod_20250823_1313
+[2025-08-23 13:13:38] [INFO] Target: 100 races/day
+[2025-08-23 13:13:38] [INFO] Daily Budget: 10,000 yen
+[2025-08-23 13:13:38] [INFO] Batch Size: 20 races/batch
+[2025-08-23 13:13:38] [INFO] Initializing production systems...
+[2025-08-23 13:13:38] [INFO]   [1/4] Initializing investment system...
+[2025-08-23 13:13:39] [INFO]     ✓ Investment system ready
+[2025-08-23 13:13:39] [INFO]   [2/4] Initializing monitoring system...
+[2025-08-23 13:13:39] [ERROR] System initialization error: MonitoringConfig.__init__() got an unexpected keyword argument 'alert_thresholds'
+[2025-08-23 13:13:39] [ERROR] System initialization failed - aborting
+[2025-08-23 13:13:58] [INFO] === Week 2 Production Operation Starting ===
+[2025-08-23 13:13:58] [INFO] Session ID: week2_prod_20250823_1313
+[2025-08-23 13:13:58] [INFO] Target: 100 races/day
+[2025-08-23 13:13:58] [INFO] Daily Budget: 10,000 yen
+[2025-08-23 13:13:58] [INFO] Batch Size: 20 races/batch
+[2025-08-23 13:13:58] [INFO] Initializing production systems...
+[2025-08-23 13:13:58] [INFO]   [1/4] Initializing investment system...
+[2025-08-23 13:13:59] [INFO]     ✓ Investment system ready
+[2025-08-23 13:13:59] [INFO]   [2/4] Initializing monitoring system...
+[2025-08-23 13:13:59] [INFO]     ✓ Monitoring system ready
+[2025-08-23 13:13:59] [INFO]   [3/4] Initializing reporting system...
+[2025-08-23 13:14:01] [ERROR] System initialization error: ReportConfig.__init__() got an unexpected keyword argument 'auto_generate'
+[2025-08-23 13:14:01] [ERROR] System initialization failed - aborting

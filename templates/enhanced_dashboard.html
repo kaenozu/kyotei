@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>競艇予想システム - 統合ダッシュボード</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+        
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .dashboard-card {
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+        
+        .investment-summary {
+            grid-column: span 2;
+        }
+        
+        .confidence-meter {
+            position: relative;
+            height: 20px;
+            background: #e0e0e0;
+            border-radius: 10px;
+            margin: 10px 0;
+            overflow: hidden;
+        }
+        
+        .confidence-fill {
+            height: 100%;
+            border-radius: 10px;
+            transition: width 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 12px;
+        }
+        
+        .confidence-very-high { background: linear-gradient(90deg, #4CAF50, #45a049); }
+        .confidence-high { background: linear-gradient(90deg, #8BC34A, #7cb342); }
+        .confidence-medium { background: linear-gradient(90deg, #FFC107, #ff9800); }
+        .confidence-low { background: linear-gradient(90deg, #FF9800, #f57c00); }
+        .confidence-very-low { background: linear-gradient(90deg, #F44336, #d32f2f); }
+        
+        .bet-recommendation {
+            background: linear-gradient(135deg, #4CAF50, #45a049);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 25px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+        }
+        
+        .bet-recommendation:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
+        }
+        
+        .alert-panel {
+            background: linear-gradient(135deg, #FF6B6B, #ee5a52);
+            color: white;
+            border-radius: 15px;
+            padding: 15px;
+            margin: 10px 0;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .stat-item {
+            text-align: center;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 10px;
+            border: 2px solid transparent;
+            transition: all 0.3s ease;
+        }
+        
+        .stat-item:hover {
+            border-color: #667eea;
+            transform: scale(1.05);
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .stat-label {
+            font-size: 14px;
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        .chart-container {
+            height: 300px;
+            margin: 20px 0;
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+        }
+        
+        .race-card {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 10px 0;
+            border-left: 4px solid #667eea;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .race-card:hover {
+            transform: translateX(5px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .high-confidence-race {
+            border-left-color: #4CAF50;
+            background: linear-gradient(90deg, rgba(76, 175, 80, 0.1), white);
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            margin: 5px;
+        }
+        
+        .btn-primary { background: #667eea; color: white; }
+        .btn-success { background: #4CAF50; color: white; }
+        .btn-warning { background: #FF9800; color: white; }
+        .btn-danger { background: #F44336; color: white; }
+        
+        .btn:hover { transform: translateY(-2px); opacity: 0.9; }
+        
+        @media (max-width: 768px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .investment-summary {
+                grid-column: span 1;
+            }
+            
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚤 競艇予想システム - 統合ダッシュボード</h1>
+            <p>リアルタイム投資分析とAI予想統合システム</p>
+        </div>
+        
+        <!-- アラートパネル -->
+        <div id="alerts-container"></div>
+        
+        <!-- 投資ダッシュボード -->
+        <div class="dashboard-grid">
+            <div class="dashboard-card investment-summary">
+                <h2>📊 投資状況サマリー</h2>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-value" id="current-bankroll">-</div>
+                        <div class="stat-label">現在資金</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="daily-spent">-</div>
+                        <div class="stat-label">本日使用額</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="win-streak">-</div>
+                        <div class="stat-label">連勝記録</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="recommended-strategy">-</div>
+                        <div class="stat-label">推奨戦略</div>
+                    </div>
+                </div>
+                <div class="chart-container" id="performance-chart"></div>
+            </div>
+            
+            <div class="dashboard-card">
+                <h3>🎯 高信頼度レース</h3>
+                <div id="high-confidence-races">
+                    <div class="loading"></div> 読み込み中...
+                </div>
+            </div>
+            
+            <div class="dashboard-card">
+                <h3>⚠️ リアルタイムアラート</h3>
+                <div id="realtime-alerts">
+                    <div class="loading"></div> 読み込み中...
+                </div>
+            </div>
+        </div>
+        
+        <!-- レース予想詳細 -->
+        <div id="race-details" class="dashboard-card" style="display: none;">
+            <h2>📈 予想信頼度分析</h2>
+            <div id="confidence-visualization"></div>
+            
+            <h3>💰 推奨ベット金額</h3>
+            <div id="bet-recommendations"></div>
+        </div>
+        
+        <!-- ナビゲーション -->
+        <div class="dashboard-card">
+            <button class="btn btn-primary" onclick="refreshDashboard()">🔄 更新</button>
+            <button class="btn btn-success" onclick="window.location.href='/'">🏠 メイン画面</button>
+            <button class="btn btn-warning" onclick="window.location.href='/accuracy'">📊 的中率レポート</button>
+        </div>
+    </div>
+    
+    <script>
+        let dashboardData = {};
+        
+        // ダッシュボード初期化
+        async function initDashboard() {
+            showLoading();
+            await Promise.all([
+                loadInvestmentData(),
+                loadAlerts(),
+                loadHighConfidenceRaces()
+            ]);
+            hideLoading();
+        }
+        
+        // 投資データ読み込み
+        async function loadInvestmentData() {
+            try {
+                const response = await fetch('/api/investment/dashboard');
+                const data = await response.json();
+                
+                if (data.success) {
+                    updateInvestmentDisplay(data.investment_data);
+                    dashboardData.investment = data.investment_data;
+                }
+            } catch (error) {
+                console.error('投資データ読み込みエラー:', error);
+            }
+        }
+        
+        // 投資データ表示更新
+        function updateInvestmentDisplay(data) {
+            document.getElementById('current-bankroll').textContent = 
+                `¥${data.current_bankroll.toLocaleString()}`;
+            document.getElementById('daily-spent').textContent = 
+                `¥${data.daily_spent.toLocaleString()}`;
+            document.getElementById('win-streak').textContent = data.win_streak;
+            document.getElementById('recommended-strategy').textContent = 
+                data.recommended_strategy.toUpperCase();
+            
+            // パフォーマンスチャート（簡易版）
+            updatePerformanceChart(data.daily_performance);
+        }
+        
+        // パフォーマンスチャート更新
+        function updatePerformanceChart(dailyData) {
+            const chartContainer = document.getElementById('performance-chart');
+            let chartHTML = '<div style="display: flex; align-items: end; gap: 5px; height: 200px; padding: 20px;">';
+            
+            const maxProfit = Math.max(...dailyData.map(d => Math.abs(d.profit)));
+            
+            dailyData.forEach(day => {
+                const height = Math.abs(day.profit) / maxProfit * 160;
+                const color = day.profit >= 0 ? '#4CAF50' : '#F44336';
+                
+                chartHTML += `
+                    <div style="flex: 1; display: flex; flex-direction: column; align-items: center;">
+                        <div style="height: ${height}px; width: 100%; background: ${color}; 
+                                   border-radius: 3px; margin-bottom: 5px;" 
+                             title="¥${day.profit.toLocaleString()}"></div>
+                        <small>${day.date.slice(-2)}</small>
+                    </div>
+                `;
+            });
+            
+            chartHTML += '</div>';
+            chartContainer.innerHTML = chartHTML;
+        }
+        
+        // アラート読み込み
+        async function loadAlerts() {
+            try {
+                const response = await fetch('/api/alerts');
+                const data = await response.json();
+                
+                if (data.success) {
+                    updateAlertsDisplay(data.alerts);
+                    updateRealtimeAlertsDisplay(data.alerts);
+                }
+            } catch (error) {
+                console.error('アラート読み込みエラー:', error);
+            }
+        }
+        
+        // アラート表示更新
+        function updateAlertsDisplay(alerts) {
+            const container = document.getElementById('alerts-container');
+            
+            const criticalAlerts = alerts.filter(a => a.severity === 'high');
+            
+            if (criticalAlerts.length > 0) {
+                container.innerHTML = criticalAlerts.map(alert => `
+                    <div class="alert-panel">
+                        <strong>${alert.title}</strong><br>
+                        ${alert.message}
+                    </div>
+                `).join('');
+            } else {
+                container.innerHTML = '';
+            }
+        }
+        
+        // リアルタイムアラート表示
+        function updateRealtimeAlertsDisplay(alerts) {
+            const container = document.getElementById('realtime-alerts');
+            
+            if (alerts.length === 0) {
+                container.innerHTML = '<p>現在アラートはありません</p>';
+                return;
+            }
+            
+            container.innerHTML = alerts.map(alert => {
+                const alertClass = alert.severity === 'high' ? 'btn-danger' : 'btn-warning';
+                
+                // 高信頼度レースアラートの場合はリンクを追加
+                if (alert.type === 'high_confidence' && alert.race_key) {
+                    const raceId = alert.race_key.replace('_', '_').padStart(5, '0');
+                    const formattedRaceId = `${raceId.substring(0, 2)}_${raceId.substring(2)}`;
+                    
+                    return `
+                        <div style="margin: 10px 0; padding: 0; border-radius: 5px; 
+                                   background: rgba(255,255,255,0.1); overflow: hidden;">
+                            <a href="/predict/${formattedRaceId}" style="text-decoration: none; color: inherit; display: block;">
+                                <div class="btn ${alertClass}" style="width: 100%; text-align: left; margin: 0; border-radius: 5px; transition: all 0.3s ease;"
+                                     onmouseover="this.style.transform='translateX(3px)'; this.style.opacity='0.9'"
+                                     onmouseout="this.style.transform='translateX(0)'; this.style.opacity='1'">
+                                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                                        <div>
+                                            <strong>🎯 ${alert.title}</strong><br>
+                                            <small>${alert.message}</small><br>
+                                            <small style="color: rgba(255,255,255,0.8);">📈 クリックして予想詳細を表示</small>
+                                        </div>
+                                        <div style="text-align: right; opacity: 0.8;">
+                                            <div style="font-size: 12px;">あと${alert.minutes_until_start}分</div>
+                                            <div style="font-size: 10px; margin-top: 2px;">
+                                                推奨: ${alert.recommended_win}号艇
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </a>
+                        </div>
+                    `;
+                } else {
+                    // 通常のアラート
+                    return `
+                        <div style="margin: 10px 0; padding: 10px; border-radius: 5px; 
+                                   background: rgba(255,255,255,0.1);">
+                            <div class="btn ${alertClass}" style="width: 100%; text-align: left;">
+                                <strong>${alert.title}</strong><br>
+                                <small>${alert.message}</small>
+                            </div>
+                        </div>
+                    `;
+                }
+            }).join('');
+        }
+        
+        // 高信頼度レース読み込み
+        async function loadHighConfidenceRaces() {
+            const container = document.getElementById('high-confidence-races');
+            
+            try {
+                // 実際のレースデータから高信頼度レースを取得
+                const response = await fetch('/api/races');
+                const data = await response.json();
+                
+                if (!data.success) {
+                    container.innerHTML = '<p>レースデータの取得に失敗しました</p>';
+                    return;
+                }
+                
+                // 会場名とIDのマッピング（逆引き用）
+                const venueNames = {
+                    1: "桐生", 2: "戸田", 3: "江戸川", 4: "平和島", 5: "多摩川", 6: "浜名湖",
+                    7: "蒲郡", 8: "常滑", 9: "津", 10: "三国", 11: "びわこ", 12: "住之江",
+                    13: "尼崎", 14: "鳴門", 15: "丸亀", 16: "児島", 17: "宮島", 18: "徳山",
+                    19: "下関", 20: "若松", 21: "芦屋", 22: "福岡", 23: "唐津", 24: "大村"
+                };
+                
+                // 高信頼度レースを抽出（信頼度55%以上に調整）
+                const highConfidenceRaces = data.races
+                    .filter(race => race.confidence >= 55 && !race.is_finished)
+                    .sort((a, b) => b.confidence - a.confidence)
+                    .slice(0, 5); // 上位5件
+                
+                if (highConfidenceRaces.length === 0) {
+                    container.innerHTML = '<p>現在高信頼度レースはありません（55%以上）</p>';
+                    return;
+                }
+                
+                container.innerHTML = highConfidenceRaces.map(race => {
+                    const venueName = venueNames[race.venue_id] || `会場${race.venue_id}`;
+                    const raceId = `${race.venue_id.toString().padStart(2, '0')}_${race.race_number.toString().padStart(2, '0')}`;
+                    
+                    return `
+                        <div class="race-card high-confidence-race" style="cursor: pointer; position: relative;">
+                            <a href="/predict/${raceId}" style="text-decoration: none; color: inherit; display: block; width: 100%; height: 100%;">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <div>
+                                        <strong>${venueName} ${race.race_number}R</strong>
+                                        <div class="confidence-meter" style="width: 150px; margin: 8px 0;">
+                                            <div class="confidence-fill confidence-very-high" 
+                                                 style="width: ${race.confidence}%">
+                                                ${race.confidence.toFixed(1)}%
+                                            </div>
+                                        </div>
+                                        <small style="color: #666;">🎯 ${race.race_title}</small>
+                                    </div>
+                                    <div style="text-align: right;">
+                                        <div><strong>推奨: ${race.prediction ? race.prediction.predicted_win : race.predicted_win || '不明'}号艇</strong></div>
+                                        <small>${race.start_time} 発走予定</small>
+                                        <div style="margin-top: 5px;">
+                                            <span class="btn btn-primary" style="padding: 5px 12px; font-size: 12px;">
+                                                📈 予想詳細を見る
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </a>
+                        </div>
+                    `;
+                }).join('');
+                
+            } catch (error) {
+                console.error('高信頼度レース読み込みエラー:', error);
+                // フォールバック表示
+                container.innerHTML = `
+                    <div class="race-card" style="cursor: pointer;">
+                        <a href="/predict/12_01" style="text-decoration: none; color: inherit; display: block;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <strong>住之江 1R</strong>
+                                    <div class="confidence-meter" style="width: 150px; margin: 8px 0;">
+                                        <div class="confidence-fill confidence-high" style="width: 75%">75.0%</div>
+                                    </div>
+                                </div>
+                                <div style="text-align: right;">
+                                    <div><strong>推奨: 1号艇</strong></div>
+                                    <small>14:30 発走予定</small>
+                                    <div style="margin-top: 5px;">
+                                        <span class="btn btn-primary" style="padding: 5px 12px; font-size: 12px;">
+                                            📈 予想詳細を見る
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                `;
+            }
+        }
+        
+        // レース詳細表示
+        async function showRaceDetails(raceKey) {
+            const detailsContainer = document.getElementById('race-details');
+            detailsContainer.style.display = 'block';
+            
+            try {
+                // 信頼度可視化データ取得
+                const confResponse = await fetch(`/api/confidence/${raceKey}`);
+                const confData = await confResponse.json();
+                
+                // ベット推奨データ取得
+                const betResponse = await fetch(`/api/bet-recommendation/${raceKey}`);
+                const betData = await betResponse.json();
+                
+                if (confData.success && betData.success) {
+                    updateConfidenceVisualization(confData.visualization);
+                    updateBetRecommendations(betData);
+                }
+            } catch (error) {
+                console.error('レース詳細取得エラー:', error);
+            }
+        }
+        
+        // 信頼度可視化更新
+        function updateConfidenceVisualization(data) {
+            const container = document.getElementById('confidence-visualization');
+            
+            container.innerHTML = `
+                <h4>${data.venue_name} ${data.race_number}R</h4>
+                <div style="margin: 20px 0;">
+                    <h5>総合推奨: ${data.summary.recommended_win}号艇 (信頼度: ${data.summary.average_confidence.toFixed(1)}%)</h5>
+                    <div class="confidence-meter">
+                        <div class="confidence-fill ${data.summary.confidence_level.level}" 
+                             style="width: ${data.summary.average_confidence}%">
+                            ${data.summary.confidence_level.label}
+                        </div>
+                    </div>
+                </div>
+                <div class="stats-grid">
+                    ${data.predictions.map(pred => `
+                        <div class="stat-item">
+                            <div class="stat-value">${pred.win_prediction}</div>
+                            <div class="stat-label">${pred.method}</div>
+                            <div style="color: ${pred.confidence_level.color}; font-weight: bold;">
+                                ${pred.confidence.toFixed(1)}%
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+        
+        // ベット推奨更新
+        function updateBetRecommendations(data) {
+            const container = document.getElementById('bet-recommendations');
+            
+            const recommended = data.recommended_bet;
+            
+            container.innerHTML = `
+                <div style="background: rgba(76, 175, 80, 0.1); padding: 15px; border-radius: 10px; margin: 15px 0;">
+                    <h4>推奨戦略: ${data.recommended_strategy.toUpperCase()}</h4>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <div class="stat-value">¥${recommended.total_bet.toLocaleString()}</div>
+                            <div class="stat-label">総投資額</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value">${recommended.expected_roi.toFixed(1)}%</div>
+                            <div class="stat-label">期待ROI</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value">${(recommended.kelly_fraction * 100).toFixed(1)}%</div>
+                            <div class="stat-label">ケリー比率</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-value">¥${data.current_bankroll.toLocaleString()}</div>
+                            <div class="stat-label">現在資金</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <h5>券種別配分</h5>
+                <div class="stats-grid">
+                    ${Object.entries(recommended.diversified_bets).map(([type, bet]) => `
+                        <div class="stat-item">
+                            <div class="stat-value">¥${bet.amount.toLocaleString()}</div>
+                            <div class="stat-label">${type.toUpperCase()}</div>
+                            <small>対象: ${bet.target.join('-')}</small>
+                        </div>
+                    `).join('')}
+                </div>
+                
+                ${data.risk_warnings.length > 0 ? `
+                    <div style="background: rgba(244, 67, 54, 0.1); padding: 10px; border-radius: 5px; margin: 10px 0;">
+                        <h5 style="color: #F44336;">⚠️ リスク警告</h5>
+                        ${data.risk_warnings.map(warning => `<p style="color: #F44336;">${warning}</p>`).join('')}
+                    </div>
+                ` : ''}
+            `;
+        }
+        
+        // ダッシュボード更新
+        async function refreshDashboard() {
+            await initDashboard();
+        }
+        
+        // 読み込み表示
+        function showLoading() {
+            // 実装省略
+        }
+        
+        function hideLoading() {
+            // 実装省略
+        }
+        
+        // 自動更新（5分間隔）
+        setInterval(refreshDashboard, 5 * 60 * 1000);
+        
+        // 初期化
+        document.addEventListener('DOMContentLoaded', initDashboard);
+    </script>
+</body>
+</html>

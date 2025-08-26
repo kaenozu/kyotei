@@ -22,6 +22,12 @@ from .api_fetcher import (
     run_async_in_thread
 )
 
+# 信頼度統一システム
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+from confidence_unifier import confidence_unifier
+
 logger = logging.getLogger(__name__)
 
 class RouteHandlers:
@@ -32,6 +38,9 @@ class RouteHandlers:
         self.fetcher = fetcher
         self.AccuracyTracker = accuracy_tracker_class
         self.EnhancedPredictor = enhanced_predictor_class
+        
+        # EnhancedPredictor単一インスタンス（重い初期化を1回のみ）
+        self._enhanced_predictor_instance = None
         
         # レース一覧キャッシュ
         self.race_list_cache = {
@@ -59,6 +68,15 @@ class RouteHandlers:
         self.app.add_url_rule('/test', 'test', self.test)
         self.app.add_url_rule('/api/races/clear-cache', 'clear_races_cache', self.clear_races_cache)
         self.app.add_url_rule('/api/races/cache-status', 'cache_status', self.cache_status)
+        self.app.add_url_rule('/api/races/enhanced-prediction/<race_key>', 'get_enhanced_prediction', self.get_enhanced_prediction)
+        
+        # 新しいUI/UX APIエンドポイント
+        self.app.add_url_rule('/api/investment/dashboard', 'investment_dashboard', self.api_investment_dashboard)
+        self.app.add_url_rule('/api/confidence/<race_key>', 'confidence_visualization', self.api_confidence_visualization)
+        self.app.add_url_rule('/api/bet-recommendation/<race_key>', 'bet_recommendation', self.api_bet_recommendation)
+        self.app.add_url_rule('/api/alerts', 'realtime_alerts', self.api_realtime_alerts)
+        self.app.add_url_rule('/dashboard', 'enhanced_dashboard', self.enhanced_dashboard)
+        # self.app.add_url_rule('/api/debug/confidence/<race_key>', 'debug_confidence', self.debug_confidence)
     
     def index(self):
         """メインページ（軽量化版）"""
@@ -104,8 +122,18 @@ class RouteHandlers:
                     logger.warning(f"データベースからの取得失敗: {e}")
             
             if not race_data:
+                # Refererヘッダーから戟り元を取得
+                from flask import request
+                referer = request.headers.get('Referer', '')
+                back_url = '/accuracy' if 'accuracy' in referer else '/'
+                
                 return render_template('openapi_predict.html',
-                                     error=f"レースデータが見つかりません: {race_id}")
+                                     error=f"レースデータが見つかりません: {race_id}",
+                                     race_id=race_id,
+                                     venue_name=venue_name,
+                                     race_number=race_number,
+                                     back_url=back_url,
+                                     show_back_button=True)
             
             # 基本情報
             start_time = race_data.get('race_closed_at', '未定')
@@ -151,6 +179,11 @@ class RouteHandlers:
                                  key=lambda x: x.get('prediction', 0), 
                                  reverse=True)
             
+            # Refererヘッダーから戟り元を取得
+            from flask import request
+            referer = request.headers.get('Referer', '')
+            back_url = '/accuracy' if 'accuracy' in referer else '/'
+            
             return render_template('openapi_predict.html',
                                  venue_id=venue_id,
                                  venue_name=venue_name,
@@ -162,12 +195,21 @@ class RouteHandlers:
                                  recommended_win=prediction_result['recommended_win'],
                                  recommended_place=prediction_result['recommended_place'],
                                  confidence=prediction_result['confidence'],
-                                 betting_recommendations=prediction_result.get('betting_recommendations'))
+                                 betting_recommendations=prediction_result.get('betting_recommendations'),
+                                 back_url=back_url,
+                                 show_back_button=True)
         
         except Exception as e:
             logger.error(f"予想ページエラー: {e}")
+            # Refererヘッダーから戟り元を取得
+            from flask import request
+            referer = request.headers.get('Referer', '')
+            back_url = '/accuracy' if 'accuracy' in referer else '/'
+            
             return render_template('openapi_predict.html',
-                                 error=f"予想処理エラー: {e}")
+                                 error=f"予想処理エラー: {e}",
+                                 back_url=back_url,
+                                 show_back_button=True)
     
     def api_races(self):
         """レース一覧API（キャッシュ機能付き）"""
@@ -250,10 +292,10 @@ class RouteHandlers:
             except Exception as e:
                 logger.warning(f"予想・結果データ取得エラー: {e}")
             
-            # 全レースの詳細予想を並列計算
-            logger.info("詳細予想システム並列実行中...")
-            enhanced_predictions = self._calculate_enhanced_predictions_parallel(data['programs'])
-            logger.info(f"並列計算結果: {len(enhanced_predictions)}件の予想を取得")
+            # 軽量化: 詳細予想は必要に応じて遅延ロード
+            # enhanced_predictions = self._calculate_enhanced_predictions_parallel(data['programs'])
+            # logger.info(f"並列計算結果: {len(enhanced_predictions)}件の予想を取得")
+            enhanced_predictions = {}  # 空の辞書で初期化し高速化
             
             for program in data['programs']:
                 venue_name = VENUE_MAPPING.get(program['race_stadium_number'], '不明')
@@ -311,6 +353,42 @@ class RouteHandlers:
             
             # ソート: 未終了レースを時刻順で先に、終了レースを後に
             races.sort(key=self._race_sort_key)
+            
+            # 統一信頼度システムで信頼度を統一化
+            try:
+                for race in races:
+                    venue_id = race.get('venue_id')
+                    race_number = race.get('race_number')
+                    
+                    if venue_id and race_number:
+                        # プログラムデータを検索
+                        race_data = None
+                        for program in data.get('programs', []):
+                            if (program['race_stadium_number'] == venue_id and 
+                                program['race_number'] == race_number):
+                                race_data = program
+                                break
+                        
+                        # 統一信頼度を取得
+                        unified_confidence = confidence_unifier.get_unified_confidence(
+                            venue_id, race_number, race_data
+                        )
+                        
+                        # 信頼度を設定（0-1を0-100に変換）
+                        race['confidence'] = unified_confidence * 100
+                        race['unified_confidence'] = unified_confidence
+                        
+                        # race['prediction']['confidence']にも統一信頼度を反映
+                        if race.get('prediction'):
+                            race['prediction']['confidence'] = unified_confidence
+                
+                logger.info(f"信頼度統一化完了: {len(races)}件")
+            except Exception as e:
+                logger.warning(f"信頼度統一化エラー: {e}")
+                # エラー時はデフォルト信頼度を設定
+                for race in races:
+                    race['confidence'] = 50.0
+                    race['unified_confidence'] = 0.5
             
             # 結果をキャッシュに保存
             result = {
@@ -428,18 +506,61 @@ class RouteHandlers:
             # ソート
             races.sort(key=self._race_sort_key)
             
-            # 進捗更新
+            # 進捗更新（信頼度統一化）
+            if self.race_loading_progress:
+                self.race_loading_progress['step'] = '信頼度統一化'
+                self.race_loading_progress['progress'] = 3
+                self.race_loading_progress['message'] = '信頼度を統一化中...'
+            
+            # 統一信頼度システムで信頼度を統一
+            try:
+                # レースデータを取得（統一信頼度計算に必要）
+                for race in races:
+                    venue_id = race.get('venue_id')
+                    race_number = race.get('race_number')
+                    
+                    if venue_id and race_number:
+                        # プログラムデータを検索
+                        race_data = None
+                        for program in data.get('programs', []):
+                            if (program['race_stadium_number'] == venue_id and 
+                                program['race_number'] == race_number):
+                                race_data = program
+                                break
+                        
+                        # 統一信頼度を取得
+                        unified_confidence = confidence_unifier.get_unified_confidence(
+                            venue_id, race_number, race_data
+                        )
+                        
+                        # 信頼度を設定（0-1を0-100に変換）
+                        race['confidence'] = unified_confidence * 100
+                        race['unified_confidence'] = unified_confidence
+                        
+                        # race['prediction']['confidence']にも統一信頼度を反映
+                        if race.get('prediction'):
+                            race['prediction']['confidence'] = unified_confidence
+                
+                logger.info(f"信頼度統一化完了: {len(races)}件")
+            except Exception as e:
+                logger.warning(f"信頼度統一化エラー: {e}")
+                # エラー時はデフォルト信頼度を設定
+                for race in races:
+                    race['confidence'] = 50.0
+                    race['unified_confidence'] = 0.5
+            
+            # 進捗更新（完了）
             if self.race_loading_progress:
                 self.race_loading_progress['step'] = '完了'
-                self.race_loading_progress['progress'] = 3
-                self.race_loading_progress['message'] = f'{len(races)}件のレースを取得完了'
+                self.race_loading_progress['progress'] = 4
+                self.race_loading_progress['message'] = f'{len(races)}件のレース処理完了'
             
             return jsonify({
                 'success': True,
                 'races': races,
                 'total_races': len(races),
                 'current_time': datetime.now().strftime('%Y年%m月%d日 %H:%M'),
-                'method': 'async_basic'
+                'method': 'async_unified'
             })
         except Exception as e:
             # エラー時の進捗更新
@@ -454,7 +575,7 @@ class RouteHandlers:
             })
     
     def accuracy_report(self, date=None):
-        """的中率レポートページ"""
+        """的中率レポートページ（ROI評価統合版）"""
         try:
             # 的中率データ取得
             tracker = self.AccuracyTracker()
@@ -469,6 +590,16 @@ class RouteHandlers:
             # 的中率計算（日付指定対応）
             accuracy_data = tracker.calculate_accuracy(target_date=date)
             
+            # ROI評価を追加
+            roi_data = None
+            try:
+                from roi_evaluation_system import ROIEvaluationSystem
+                roi_system = ROIEvaluationSystem()
+                roi_data = roi_system.get_roi_report(days=7)
+            except Exception as e:
+                logger.warning(f"ROI評価エラー: {e}")
+                roi_data = None
+            
             # 日付フォーマット
             date_obj = datetime.strptime(date, '%Y-%m-%d')
             current_date_formatted = date_obj.strftime('%Y年%m月%d日')
@@ -477,6 +608,7 @@ class RouteHandlers:
                                  summary=accuracy_data['summary'],
                                  races=accuracy_data['races'],
                                  venues=accuracy_data['venues'],
+                                 roi_data=roi_data,
                                  current_time=datetime.now().strftime('%Y年%m月%d日 %H:%M'),
                                  current_date=date,
                                  current_date_formatted=current_date_formatted,
@@ -489,6 +621,7 @@ class RouteHandlers:
                                  summary=None,
                                  races=[],
                                  venues=VENUE_MAPPING,
+                                 roi_data=None,
                                  current_time=datetime.now().strftime('%Y年%m月%d日 %H:%M'),
                                  today=datetime.now().strftime('%Y-%m-%d'),
                                  error=f"データ取得エラー: {e}")
@@ -762,8 +895,11 @@ class RouteHandlers:
                 race_number = race_data['race_number']
                 race_key = f"{venue_id}_{race_number}"
                 
-                enhanced_predictor = self.EnhancedPredictor()
-                prediction = enhanced_predictor.calculate_enhanced_prediction(venue_id, race_number, 'today')
+                # 単一インスタンス再利用（初期化コスト削減）
+                if self._enhanced_predictor_instance is None:
+                    self._enhanced_predictor_instance = self.EnhancedPredictor()
+                
+                prediction = self._enhanced_predictor_instance.calculate_enhanced_prediction(venue_id, race_number, 'today')
                 
                 if not prediction:
                     logger.warning(f"並列計算でEnhancedPredictor失敗、フォールバック使用: {venue_id}_{race_number}")
@@ -810,6 +946,45 @@ class RouteHandlers:
         logger.info(f"詳細予想並列計算完了: {len(predictions_cache)}件, {elapsed_time:.2f}秒")
         
         return predictions_cache
+    
+    def get_enhanced_prediction(self, race_key):
+        """個別レースの詳細予想を遅延ロードで取得"""
+        try:
+            parts = race_key.split('_')
+            if len(parts) != 2:
+                return jsonify({'success': False, 'error': '不正なレースキー'})
+            
+            venue_id = int(parts[0])
+            race_number = int(parts[1])
+            
+            # EnhancedPredictorの単一インスタンスを使用
+            if self._enhanced_predictor_instance is None:
+                self._enhanced_predictor_instance = self.EnhancedPredictor()
+            
+            prediction = self._enhanced_predictor_instance.calculate_enhanced_prediction(
+                venue_id, race_number, 'today'
+            )
+            
+            if not prediction:
+                # フォールバック予想
+                prediction = {
+                    'predicted_win': 1,
+                    'predicted_place': [1, 2, 3],
+                    'confidence': 0.5
+                }
+            
+            return jsonify({
+                'success': True,
+                'race_key': race_key,
+                'prediction': normalize_prediction_data(prediction)
+            })
+            
+        except Exception as e:
+            logger.error(f"詳細予想遅延ロードエラー {race_key}: {e}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            })
     
     def _auto_update_results(self, tracker):
         """実際の結果を自動取得・更新"""
@@ -863,3 +1038,437 @@ class RouteHandlers:
             
         except Exception as e:
             logger.warning(f"自動結果更新失敗: {e}")
+    
+    def api_investment_dashboard(self):
+        """投資ダッシュボードAPI"""
+        try:
+            from advanced_investment_strategy import AdvancedInvestmentStrategy
+            
+            strategy = AdvancedInvestmentStrategy()
+            
+            # 現在の投資状況
+            investment_status = {
+                'current_bankroll': strategy.current_bankroll,
+                'daily_spent': strategy.daily_spent,
+                'win_streak': strategy.win_streak,
+                'loss_streak': strategy.consecutive_loss_count,
+                'daily_limit': strategy.current_bankroll * strategy.daily_limit,
+                'performance_metrics': strategy.performance_metrics,
+                'recommended_strategy': strategy.get_strategy_recommendation()
+            }
+            
+            # 過去7日間の収支データ
+            conn = sqlite3.connect(strategy.db_path)
+            cursor = conn.cursor()
+            
+            seven_days_ago = (datetime.now() - timedelta(days=7)).strftime('%Y-%m-%d')
+            cursor.execute('''
+                SELECT date_str, SUM(profit_loss) as daily_profit,
+                       COUNT(*) as daily_bets, AVG(roi) as daily_roi
+                FROM investment_history 
+                WHERE date_str >= ?
+                GROUP BY date_str
+                ORDER BY date_str
+            ''', (seven_days_ago,))
+            
+            daily_data = cursor.fetchall()
+            conn.close()
+            
+            investment_status['daily_performance'] = [
+                {
+                    'date': row[0],
+                    'profit': row[1] or 0,
+                    'bets': row[2] or 0,
+                    'roi': row[3] or 0.0
+                } for row in daily_data
+            ]
+            
+            return jsonify({
+                'success': True,
+                'investment_data': investment_status
+            })
+            
+        except Exception as e:
+            logger.error(f"投資ダッシュボードエラー: {e}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            })
+    
+    def api_confidence_visualization(self, race_key):
+        """予想信頼度可視化API"""
+        try:
+            parts = race_key.split('_')
+            if len(parts) != 2:
+                return jsonify({'success': False, 'error': '不正なレースキー'})
+            
+            venue_id = int(parts[0])
+            race_number = int(parts[1])
+            
+            # 高度予想システムの統合
+            from advanced_ensemble_system import AdvancedEnsembleSystem
+            from realtime_data_integration import RealtimeDataIntegration
+            
+            ensemble = AdvancedEnsembleSystem()
+            realtime = RealtimeDataIntegration()
+            
+            # レースデータ取得
+            data = run_async_in_thread(self.fetcher.get_today_races_async())
+            race_data = None
+            
+            for program in data.get('programs', []):
+                if (program['race_stadium_number'] == venue_id and 
+                    program['race_number'] == race_number):
+                    race_data = program
+                    break
+            
+            if not race_data:
+                return jsonify({'success': False, 'error': 'レースデータが見つかりません'})
+            
+            # 複数予想手法の結果を取得
+            predictions = {}
+            
+            # 統一信頼度を取得
+            unified_confidence = confidence_unifier.get_unified_confidence(
+                venue_id, race_number, race_data
+            )
+            
+            # 1. 統一基本予想（統一信頼度を使用）
+            basic_prediction = calculate_prediction(race_data)
+            predictions['basic'] = {
+                'win': basic_prediction.get('predicted_win', 1),
+                'confidence': unified_confidence * 100,  # 統一信頼度を使用
+                'method': 'Unified Basic Statistics'
+            }
+            
+            # 2. アンサンブル予想
+            try:
+                ensemble_prediction = ensemble.predict(race_data)
+                predictions['ensemble'] = {
+                    'win': ensemble_prediction.get('win', 1),
+                    'confidence': ensemble_prediction.get('confidence', 50.0),
+                    'method': ensemble_prediction.get('method', 'Ensemble'),
+                    'model_weights': ensemble_prediction.get('model_weights', {})
+                }
+            except:
+                predictions['ensemble'] = predictions['basic'].copy()
+                predictions['ensemble']['method'] = 'Ensemble (Fallback)'
+            
+            # 3. リアルタイム統合予想（統一信頼度ベース）
+            try:
+                realtime_data = run_async_in_thread(
+                    realtime.get_integrated_data(venue_id, race_number)
+                )
+                confidence_boost = realtime_data.get('confidence_boost', 1.0)
+                
+                # 統一信頼度にリアルタイム補正を適用
+                boosted_confidence = min(95.0, unified_confidence * 100 * confidence_boost)
+                
+                predictions['realtime'] = {
+                    'win': predictions['basic']['win'],
+                    'confidence': boosted_confidence,
+                    'method': 'Unified Realtime Enhanced',
+                    'boost_factor': confidence_boost,
+                    'base_confidence': unified_confidence * 100,
+                    'weather_impact': realtime_data.get('weather', {}).get('racing_impact', {}),
+                    'recommendations': realtime_data.get('recommendations', {})
+                }
+            except:
+                predictions['realtime'] = predictions['basic'].copy()
+                predictions['realtime']['method'] = 'Unified Realtime (Fallback)'
+            
+            # 信頼度レベル分類
+            def get_confidence_level(confidence):
+                if confidence >= 80:
+                    return {'level': 'very_high', 'color': '#4CAF50', 'label': '非常に高い'}
+                elif confidence >= 65:
+                    return {'level': 'high', 'color': '#8BC34A', 'label': '高い'}
+                elif confidence >= 50:
+                    return {'level': 'medium', 'color': '#FFC107', 'label': '普通'}
+                elif confidence >= 35:
+                    return {'level': 'low', 'color': '#FF9800', 'label': '低い'}
+                else:
+                    return {'level': 'very_low', 'color': '#F44336', 'label': '非常に低い'}
+            
+            # 可視化データ構築
+            visualization_data = {
+                'race_key': race_key,
+                'venue_name': VENUE_MAPPING.get(venue_id, '不明'),
+                'race_number': race_number,
+                'predictions': []
+            }
+            
+            for method, pred_data in predictions.items():
+                confidence_info = get_confidence_level(pred_data['confidence'])
+                visualization_data['predictions'].append({
+                    'method': pred_data['method'],
+                    'win_prediction': pred_data['win'],
+                    'confidence': pred_data['confidence'],
+                    'confidence_level': confidence_info,
+                    'additional_data': pred_data.get('model_weights') or pred_data.get('boost_factor') or {}
+                })
+            
+            # 総合推奨（統一信頼度ベース）
+            # 統一信頼度を基準として、各手法の補正値を加味
+            base_confidence = unified_confidence * 100
+            
+            # 最も高い信頼度を持つ手法を特定
+            most_confident = max(predictions.values(), key=lambda x: x['confidence'])
+            
+            # 統一信頼度を使用した総合判定
+            visualization_data['summary'] = {
+                'recommended_win': most_confident['win'],
+                'average_confidence': base_confidence,  # 統一信頼度をベースに
+                'confidence_level': get_confidence_level(base_confidence),
+                'best_method': most_confident['method'],
+                'consensus': len(set(p['win'] for p in predictions.values())) == 1,
+                'unified_base': unified_confidence,
+                'prediction_variants': {
+                    method: pred['confidence'] for method, pred in predictions.items()
+                }
+            }
+            
+            return jsonify({
+                'success': True,
+                'visualization': visualization_data
+            })
+            
+        except Exception as e:
+            logger.error(f"信頼度可視化エラー: {e}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            })
+    
+    def api_bet_recommendation(self, race_key):
+        """推奨ベット金額API"""
+        try:
+            parts = race_key.split('_')
+            if len(parts) != 2:
+                return jsonify({'success': False, 'error': '不正なレースキー'})
+            
+            venue_id = int(parts[0])
+            race_number = int(parts[1])
+            
+            # 予想データ取得
+            confidence_data = self.api_confidence_visualization(race_key)
+            if not confidence_data.json.get('success'):
+                return jsonify({'success': False, 'error': '予想データ取得失敗'})
+            
+            visualization = confidence_data.json['visualization']
+            summary = visualization['summary']
+            
+            # 投資戦略システム
+            from advanced_investment_strategy import AdvancedInvestmentStrategy
+            
+            strategy_system = AdvancedInvestmentStrategy()
+            
+            # 予想データを投資システム用に変換
+            race_prediction = {
+                'win': summary['recommended_win'],
+                'place': [summary['recommended_win'], summary['recommended_win'] % 6 + 1],
+                'trifecta': [summary['recommended_win'], summary['recommended_win'] % 6 + 1, (summary['recommended_win'] + 1) % 6 + 1],
+                'confidence': summary['average_confidence'],
+                'estimated_odds': 5.0 - (summary['average_confidence'] / 25.0)  # 信頼度からオッズ推定
+            }
+            
+            # 各戦略での推奨ベット額計算
+            strategies = ['conservative', 'moderate', 'aggressive']
+            recommendations = {}
+            
+            for strategy_name in strategies:
+                bet_result = strategy_system.calculate_optimal_bet(race_prediction, strategy_name)
+                
+                recommendations[strategy_name] = {
+                    'total_bet': bet_result['total_bet'],
+                    'diversified_bets': bet_result['diversified_bets'],
+                    'expected_roi': bet_result['estimated_roi'],
+                    'risk_level': bet_result['risk_level'],
+                    'kelly_fraction': bet_result['kelly_fraction']
+                }
+            
+            # 現在の推奨戦略
+            recommended_strategy_name = strategy_system.get_strategy_recommendation()
+            recommended_bet = recommendations[recommended_strategy_name]
+            
+            return jsonify({
+                'success': True,
+                'race_key': race_key,
+                'current_bankroll': strategy_system.current_bankroll,
+                'recommended_strategy': recommended_strategy_name,
+                'recommended_bet': recommended_bet,
+                'all_strategies': recommendations,
+                'risk_warnings': self._generate_risk_warnings(strategy_system, summary['average_confidence'])
+            })
+            
+        except Exception as e:
+            logger.error(f"ベット推奨エラー: {e}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            })
+    
+    def _generate_risk_warnings(self, strategy_system, confidence):
+        """リスク警告生成"""
+        warnings = []
+        
+        if strategy_system.consecutive_loss_count >= 3:
+            warnings.append(f"注意: 現在{strategy_system.consecutive_loss_count}連敗中です。慎重な投資を推奨します。")
+        
+        if strategy_system.current_bankroll < 5000:
+            warnings.append("警告: 資金が少なくなっています。投資額を控えめにしてください。")
+        
+        if confidence < 60:
+            warnings.append("注意: 予想信頼度が低めです。リスクを考慮した投資を行ってください。")
+        
+        daily_usage = strategy_system.daily_spent / (strategy_system.current_bankroll * strategy_system.daily_limit)
+        if daily_usage > 0.8:
+            warnings.append("警告: 本日の投資限度額の80%を超過しています。")
+        
+        return warnings
+    
+    def api_realtime_alerts(self):
+        """リアルタイムアラートAPI"""
+        try:
+            from realtime_data_integration import RealtimeDataIntegration
+            
+            realtime = RealtimeDataIntegration()
+            alerts = []
+            
+            # 今日のレース一覧を取得
+            data = run_async_in_thread(self.fetcher.get_today_races_async())
+            current_time = datetime.now()
+            
+            for program in data.get('programs', []):
+                venue_id = program['race_stadium_number']
+                race_number = program['race_number']
+                start_time = program.get('race_closed_at', '')
+                
+                # 30分以内に開始するレースをチェック
+                race_time = self._parse_race_time(start_time, current_time)
+                if not race_time:
+                    continue
+                
+                time_diff = (race_time - current_time).total_seconds() / 60
+                if 5 <= time_diff <= 30:  # 5-30分前
+                    # 高信頼度予想をチェック
+                    confidence_data = self.api_confidence_visualization(f"{venue_id}_{race_number}")
+                    if confidence_data.json.get('success'):
+                        visualization = confidence_data.json['visualization']
+                        avg_confidence = visualization['summary']['average_confidence']
+                        
+                        if avg_confidence >= 75:  # 高信頼度
+                            venue_name = VENUE_MAPPING.get(venue_id, '不明')
+                            alerts.append({
+                                'type': 'high_confidence',
+                                'title': f'高信頼度レース発見',
+                                'message': f'{venue_name} {race_number}R - 信頼度{avg_confidence:.1f}%',
+                                'race_key': f"{venue_id}_{race_number}",
+                                'venue_name': venue_name,
+                                'race_number': race_number,
+                                'confidence': avg_confidence,
+                                'start_time': start_time,
+                                'minutes_until_start': int(time_diff),
+                                'recommended_win': visualization['summary']['recommended_win']
+                            })
+            
+            # 投資状況アラート
+            from advanced_investment_strategy import AdvancedInvestmentStrategy
+            strategy = AdvancedInvestmentStrategy()
+            
+            if strategy.consecutive_loss_count >= 5:
+                alerts.append({
+                    'type': 'loss_streak_warning',
+                    'title': '連敗注意報',
+                    'message': f'現在{strategy.consecutive_loss_count}連敗中です。投資戦略の見直しを検討してください。',
+                    'severity': 'high'
+                })
+            
+            if strategy.current_bankroll < 3000:
+                alerts.append({
+                    'type': 'low_bankroll_warning',
+                    'title': '資金不足警告',
+                    'message': f'残り資金が{strategy.current_bankroll}円と少なくなっています。',
+                    'severity': 'high'
+                })
+            
+            return jsonify({
+                'success': True,
+                'alerts': alerts,
+                'alert_count': len(alerts)
+            })
+            
+        except Exception as e:
+            logger.error(f"リアルタイムアラートエラー: {e}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            })
+    
+    def enhanced_dashboard(self):
+        """統合ダッシュボードページ"""
+        return render_template('enhanced_dashboard.html')
+    
+    def debug_confidence(self, race_key):
+        """信頼度デバッグAPI"""
+        try:
+            parts = race_key.split('_')
+            if len(parts) != 2:
+                return jsonify({'success': False, 'error': '不正なレースキー'})
+            
+            venue_id = int(parts[0])
+            race_number = int(parts[1])
+            
+            # レースデータ取得
+            data = run_async_in_thread(self.fetcher.get_today_races_async())
+            race_data = None
+            
+            for program in data.get('programs', []):
+                if (program['race_stadium_number'] == venue_id and 
+                    program['race_number'] == race_number):
+                    race_data = program
+                    break
+            
+            # 詳細信頼度分析
+            analysis = confidence_unifier.get_detailed_confidence_analysis(
+                venue_id, race_number, race_data
+            )
+            
+            # 従来システムの信頼度も取得
+            legacy_confidence = None
+            if race_data:
+                legacy_prediction = calculate_prediction(race_data)
+                legacy_confidence = legacy_prediction.get('confidence', 0.5)
+            
+            debug_info = {
+                'race_key': race_key,
+                'venue_name': VENUE_MAPPING.get(venue_id, '不明'),
+                'race_number': race_number,
+                'unified_analysis': analysis,
+                'legacy_confidence': legacy_confidence,
+                'comparison': {
+                    'unified_vs_legacy': {
+                        'unified': analysis['unified_confidence'],
+                        'legacy': legacy_confidence,
+                        'difference': abs(analysis['unified_confidence'] - (legacy_confidence or 0.5)),
+                        'match': abs(analysis['unified_confidence'] - (legacy_confidence or 0.5)) < 0.01
+                    }
+                },
+                'confidence_sources': {
+                    source: confidence for source, confidence in analysis['sources'].items()
+                },
+                'primary_source': analysis['primary_source'],
+                'timestamp': datetime.now().isoformat()
+            }
+            
+            return jsonify({
+                'success': True,
+                'debug_info': debug_info
+            })
+            
+        except Exception as e:
+            logger.error(f"信頼度デバッグエラー: {e}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            })

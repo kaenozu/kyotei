@@ -229,6 +229,42 @@
             color: #28a745;
             font-weight: bold;
         }
+        .confidence-display {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin: 8px 0;
+            padding: 5px 10px;
+            background-color: #f8f9fa;
+            border-radius: 15px;
+            border: 1px solid #e9ecef;
+        }
+        .confidence-label {
+            font-size: 0.9em;
+            color: #666;
+            font-weight: 500;
+        }
+        .confidence-value {
+            font-size: 1.1em;
+            font-weight: bold;
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+        .confidence-high {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .confidence-medium {
+            background-color: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .confidence-low {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
         .race-title {
             color: #666;
             font-size: 0.9em;
@@ -367,8 +403,9 @@
             <button class="theme-toggle" onclick="toggleTheme()">🌙 ダーク</button>
             <h1>🏁 BoatraceOpenAPI</h1>
             <p>{{ current_time }} 現在のレース情報</p>
-            <div style="margin-top: 15px;">
+            <div style="margin-top: 15px; display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
                 <a href="/accuracy" style="background: linear-gradient(135deg, #28a745, #20c997); color: white; padding: 10px 20px; text-decoration: none; border-radius: 20px; font-weight: bold;">📊 的中率レポート</a>
+                <a href="/dashboard" style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 10px 20px; text-decoration: none; border-radius: 20px; font-weight: bold; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3); transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(102, 126, 234, 0.4)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(102, 126, 234, 0.3)'">🚀 AI統合ダッシュボード</a>
             </div>
         </div>
 
@@ -450,6 +487,79 @@
             // 非同期データロードを開始
             loadRaceData();
         });
+        
+        // ブラウザの戻るボタンでページに戻った場合もキャッシュを活用
+        window.addEventListener('pageshow', function(event) {
+            if (event.persisted) {
+                // ページが bfcache から復元された場合
+                console.log('ページがキャッシュから復元されました');
+                const cachedData = getCachedRaceData();
+                if (cachedData) {
+                    displayRaceData(cachedData);
+                }
+            }
+        });
+
+        // セッションストレージキャッシュキー
+        const RACE_DATA_CACHE_KEY = 'race_data_cache';
+        const CACHE_EXPIRY_KEY = 'race_data_cache_expiry';
+        const CACHE_DURATION = 5 * 60 * 1000; // 5分間キャッシュ
+
+        // キャッシュから取得
+        function getCachedRaceData() {
+            try {
+                const cachedData = sessionStorage.getItem(RACE_DATA_CACHE_KEY);
+                const cacheExpiry = sessionStorage.getItem(CACHE_EXPIRY_KEY);
+                
+                if (cachedData && cacheExpiry) {
+                    const expiry = parseInt(cacheExpiry);
+                    if (Date.now() < expiry) {
+                        console.log('キャッシュからレースデータを取得');
+                        return JSON.parse(cachedData);
+                    }
+                }
+                return null;
+            } catch (error) {
+                console.warn('キャッシュ取得エラー:', error);
+                return null;
+            }
+        }
+
+        // キャッシュに保存
+        function setCachedRaceData(data) {
+            try {
+                sessionStorage.setItem(RACE_DATA_CACHE_KEY, JSON.stringify(data));
+                sessionStorage.setItem(CACHE_EXPIRY_KEY, (Date.now() + CACHE_DURATION).toString());
+                console.log('レースデータをキャッシュに保存');
+            } catch (error) {
+                console.warn('キャッシュ保存エラー:', error);
+            }
+        }
+
+        // キャッシュされたデータを表示
+        async function displayRaceData(cachedData) {
+            const loadingIndicator = document.getElementById('loading-indicator');
+            const raceGrid = document.getElementById('race-grid');
+            const stats = document.querySelector('.stats');
+            
+            // キャッシュからのデータ表示は即座に行う
+            loadingIndicator.style.display = 'none';
+            raceGrid.style.display = 'grid';
+            
+            // レースデータ表示
+            displayRaces(cachedData.races);
+            
+            // 統計情報更新
+            updateStats(cachedData.races);
+            
+            // キャッシュされたデータに予想情報があるか確認して表示
+            displayCachedPredictions(cachedData.races);
+            
+            // ホバー効果設定
+            setupHoverEffects();
+            
+            console.log(`キャッシュから${cachedData.races.length}件のレースを表示しました`);
+        }
 
         // 非同期レースデータ読み込み機能
         async function loadRaceData() {
@@ -459,6 +569,14 @@
             const stats = document.querySelector('.stats');
             
             try {
+                // Step 0: キャッシュチェック
+                const cachedData = getCachedRaceData();
+                if (cachedData) {
+                    console.log('キャッシュからデータ表示');
+                    displayRaceData(cachedData);
+                    return;
+                }
+
                 // Step 1: 基本データ取得
                 updateLoadingProgress('データ取得', 1, 4, 'レースデータを取得中...');
                 
@@ -483,8 +601,18 @@
                 updateLoadingProgress('AI予想計算', 3, 4, 'AI予想を計算中...');
                 await loadPredictions(races);
                 
-                // Step 4: 完了
+                // Step 4: 完了とキャッシュ保存
                 updateLoadingProgress('完了', 4, 4, `${races.length}件のレースを取得完了`);
+                
+                // データをキャッシュに保存
+                setCachedRaceData({
+                    races: races,
+                    timestamp: Date.now(),
+                    stats: {
+                        total: races.length,
+                        finished: races.filter(r => r.is_finished).length
+                    }
+                });
                 
                 // ローディングを隠してレースグリッドを表示
                 setTimeout(() => {
@@ -523,6 +651,13 @@
             });
         }
 
+        // 信頼度分類関数
+        function getConfidenceClass(confidence) {
+            if (confidence >= 70) return 'confidence-high';
+            if (confidence >= 55) return 'confidence-medium';
+            return 'confidence-low';
+        }
+
         // レースカード作成
         function createRaceCard(race) {
             const div = document.createElement('div');
@@ -533,6 +668,11 @@
                 }
             };
             
+            // 信頼度パーセンテージ計算（統一信頼度対応）
+            const confidencePercent = race.unified_confidence ? 
+                Math.round(race.unified_confidence * 100) : 
+                (race.confidence ? Math.round(race.confidence) : 50);
+            
             div.innerHTML = `
                 <div class="race-venue">
                     ${race.venue_name}
@@ -542,6 +682,10 @@
                     <div class="race-number">${race.race_number}R</div>
                     <div class="race-time">${race.start_time}</div>
                 </div>
+                <div class="confidence-display">
+                    <span class="confidence-label">信頼度:</span>
+                    <span class="confidence-value ${getConfidenceClass(confidencePercent)}">${confidencePercent}%</span>
+                </div>
                 ${race.race_title ? `<div class="race-title">${race.race_title}</div>` : ''}
                 <div id="prediction-${race.race_id}" class="prediction-section" style="display: none;">
                     <!-- 予想データは後で追加 -->
@@ -549,6 +693,57 @@
             `;
             
             return div;
+        }
+
+        // キャッシュされた予想データを表示
+        function displayCachedPredictions(races) {
+            races.forEach(race => {
+                if (race.prediction) {
+                    displayPredictionForRace(race.race_id, race.prediction);
+                }
+            });
+        }
+        
+        // 個別レースの予想データを表示
+        function displayPredictionForRace(raceId, prediction) {
+            const predictionSection = document.getElementById(`prediction-${raceId}`);
+            if (!predictionSection || !prediction) return;
+            
+            let html = '';
+            
+            if (prediction.predicted_win) {
+                html += `
+                    <div class="prediction-row">
+                        <span>🏆 単勝推奨:</span>
+                        <span class="prediction-value">${prediction.predicted_win}号艇</span>
+                    </div>
+                `;
+            }
+            
+            if (prediction.predicted_place && prediction.predicted_place.length > 0) {
+                html += `
+                    <div class="prediction-row">
+                        <span>🎯 複勝推奨:</span>
+                        <span class="prediction-value">${prediction.predicted_place.join('-')}号艇</span>
+                    </div>
+                `;
+            }
+            
+            if (prediction.confidence) {
+                const confidencePercent = Math.round(prediction.confidence * 100);
+                const stars = generateConfidenceStars(prediction.confidence);
+                html += `
+                    <div class="prediction-row">
+                        <span>⭐ 予想精度:</span>
+                        <span class="prediction-confidence">${stars} ${confidencePercent}%</span>
+                    </div>
+                `;
+            }
+            
+            if (html) {
+                predictionSection.innerHTML = html;
+                predictionSection.style.display = 'block';
+            }
         }
 
         // AI予想データ取得

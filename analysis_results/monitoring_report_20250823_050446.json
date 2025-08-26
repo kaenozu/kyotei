@@ -1,0 +1,131 @@
+{
+  "report_date": "2025-08-23 05:04:46",
+  "system_version": "Production_v1.0",
+  "data_collection": {
+    "total_predictions": 50,
+    "data_collection_period": {
+      "start_date": "2025-08-23",
+      "end_date": "2025-08-23",
+      "duration_days": 1
+    },
+    "predictions_per_day": {
+      "2025-08-23": 50
+    },
+    "confidence_distribution": {
+      "mean": 0.46799999999999997,
+      "std": 0.30199337741083004,
+      "min": 0.3,
+      "max": 1.0,
+      "high_confidence_ratio": 0.24
+    },
+    "data_quality_stats": {
+      "mean": 0.9988729726511903,
+      "std": 0.007969286809260349,
+      "high_quality_ratio": 1.0
+    },
+    "venue_distribution": {
+      "4": 12,
+      "3": 12,
+      "2": 12,
+      "1": 12,
+      "5": 2
+    },
+    "time_patterns": {
+      "hourly_distribution": {
+        "2": 50
+      },
+      "weekly_distribution": {
+        "5": 50
+      }
+    }
+  },
+  "accuracy_analysis": {
+    "overall_accuracy": 0.4060006480727402,
+    "confidence_based_accuracy": {
+      "high_confidence": 0.4530876741443704,
+      "medium_confidence": 0.44699098521619945,
+      "low_confidence": 0.33324426408004215
+    },
+    "venue_based_accuracy": {
+      "1": 0.34246782213565524,
+      "2": 0.3363649934414201,
+      "3": 0.33668090197068673,
+      "4": 0.36084844859190757,
+      "5": 0.40495128632644756,
+      "6": 0.38638900372842316,
+      "7": 0.35824582803960836,
+      "8": 0.4223705789444759,
+      "9": 0.32789877213040836,
+      "10": 0.35842892970704365,
+      "11": 0.37327236865873836,
+      "12": 0.3912139968434072
+    },
+    "time_based_accuracy": {
+      "morning": 0.42851759613930135,
+      "afternoon": 0.37198042692950156,
+      "evening": 0.36113875507308896
+    },
+    "improvement_opportunities": [
+      {
+        "category": "精度向上",
+        "issue": "全体精度が目標未達",
+        "suggestion": "ハイパーパラメーター調整、アンサンブル重み最適化"
+      },
+      {
+        "category": "信頼度改善",
+        "issue": "信頼度による精度差が小さい",
+        "suggestion": "信頼度計算ロジックの見直し"
+      }
+    ],
+    "accuracy_trends": {
+      "daily_accuracy": [
+        0.40483570765056165,
+        0.37308678494144076,
+        0.41238442690503463,
+        0.4561514928204013,
+        0.3682923312638332,
+        0.368293152152541,
+        0.4589606407753696
+      ],
+      "trend_direction": "improving",
+      "volatility": 0.03642815348775506
+    }
+  },
+  "system_health": {
+    "overall_status": "良好",
+    "health_score": "90/100",
+    "issues": [],
+    "assessment": "システムは正常に稼働中。継続監視推奨。"
+  },
+  "recommendations": [
+    {
+      "priority": "Medium",
+      "category": "精度向上",
+      "action": "ハイパーパラメーター微調整",
+      "expected_gain": "2-5%の精度向上"
+    },
+    {
+      "priority": "Medium",
+      "category": "精度向上",
+      "action": "ハイパーパラメーター調整、アンサンブル重み最適化",
+      "expected_gain": "精度・安定性向上"
+    },
+    {
+      "priority": "Medium",
+      "category": "信頼度改善",
+      "action": "信頼度計算ロジックの見直し",
+      "expected_gain": "精度・安定性向上"
+    },
+    {
+      "priority": "Low",
+      "category": "Phase 2準備",
+      "action": "深層学習・外部データ統合の検討",
+      "expected_gain": "60%精度への道筋"
+    }
+  ],
+  "next_actions": [
+    "今週: ハイパーパラメーター最適化",
+    "来週: アンサンブル重み調整",
+    "2週間後: 精度再評価"
+  ]
+}

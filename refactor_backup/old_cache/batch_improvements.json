@@ -1,0 +1,7 @@
+{
+  "venue_2": {
+    "type": "venue_specific_adjustment",
+    "current_accuracy": 0.4,
+    "adjustment": "increase_local_weight"
+  }
+}
