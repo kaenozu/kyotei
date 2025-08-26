@@ -70,7 +70,7 @@ def initialize_components(app, logger):
     
     # 必要なクラスをインポート
     from .api_fetcher import SimpleOpenAPIFetcher
-    from .route_handlers import RouteHandlers
+    from .routes import RouteManager
     from .scheduler_service import IntegratedScheduler, create_scheduler_routes
     
     # 必要に応じて他のクラスもインポート
@@ -120,14 +120,14 @@ def initialize_components(app, logger):
     fetcher = SimpleOpenAPIFetcher()
     logger.info("[OK] APIフェッチャー初期化完了")
     
-    # ルートハンドラー初期化
-    route_handlers = RouteHandlers(
+    # 分割されたルートハンドラー初期化
+    route_manager = RouteManager(
         app=app, 
         fetcher=fetcher,
         accuracy_tracker_class=AccuracyTracker,
         enhanced_predictor_class=EnhancedPredictor
     )
-    logger.info("[OK] ルートハンドラー初期化完了")
+    logger.info("[OK] 分割ルートハンドラー初期化完了")
     
     # スケジューラー初期化
     scheduler = IntegratedScheduler(
@@ -142,7 +142,7 @@ def initialize_components(app, logger):
     
     return {
         'fetcher': fetcher,
-        'route_handlers': route_handlers,
+        'route_manager': route_manager,
         'scheduler': scheduler
     }
 
