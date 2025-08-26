@@ -1,0 +1,1052 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>的中率レポート - BoatraceOpenAPI</title>
+    <style>
+        :root {
+            --bg-color: #f5f5f5;
+            --container-bg: white;
+            --text-color: #333;
+            --header-color: #007bff;
+            --border-color: #e0e0e0;
+            --shadow: rgba(0,0,0,0.1);
+            --success-color: #28a745;
+            --warning-color: #ffc107;
+            --danger-color: #dc3545;
+        }
+        
+        [data-theme="dark"] {
+            --bg-color: #1a1a1a;
+            --container-bg: #2d2d2d;
+            --text-color: #ffffff;
+            --header-color: #4dabf7;
+            --border-color: #404040;
+            --shadow: rgba(0,0,0,0.3);
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            transition: all 0.3s ease;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: var(--container-bg);
+            border-radius: 10px;
+            box-shadow: 0 2px 10px var(--shadow);
+            padding: 30px;
+            transition: all 0.3s ease;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid var(--header-color);
+            position: relative;
+        }
+        
+        .header h1 {
+            color: var(--header-color);
+            margin: 0;
+            font-size: 2.2em;
+        }
+        
+        .theme-toggle {
+            position: absolute;
+            top: 0;
+            right: 0;
+            background: var(--header-color);
+            color: white;
+            border: none;
+            border-radius: 20px;
+            padding: 8px 16px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+        
+        .back-button {
+            display: inline-block;
+            background-color: #6c757d;
+            color: white;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            transition: background-color 0.3s ease;
+        }
+        
+        .accuracy-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        
+        .summary-card {
+            background: linear-gradient(135deg, var(--success-color) 0%, #20c997 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+        }
+        
+        .summary-card.warning {
+            background: linear-gradient(135deg, var(--warning-color) 0%, #e0a800 100%);
+            box-shadow: 0 4px 15px rgba(255, 193, 7, 0.3);
+        }
+        
+        .summary-card.danger {
+            background: linear-gradient(135deg, var(--danger-color) 0%, #c82333 100%);
+            box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3);
+        }
+        
+        .summary-number {
+            font-size: 2.5em;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        .summary-label {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        
+        .race-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background-color: var(--container-bg);
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px var(--shadow);
+        }
+        
+        .race-table th {
+            background-color: var(--header-color);
+            color: white;
+            padding: 15px;
+            text-align: left;
+            font-weight: bold;
+            position: relative;
+        }
+        
+        .sort-indicator {
+            font-size: 0.8em;
+            margin-left: 5px;
+            opacity: 0.7;
+        }
+        
+        .race-table th:hover {
+            background-color: var(--header-color);
+            filter: brightness(1.1);
+        }
+        
+        .detail-link {
+            display: inline-block;
+            padding: 6px 12px;
+            background: linear-gradient(135deg, var(--header-color), #0056b3);
+            color: white;
+            text-decoration: none;
+            border-radius: 15px;
+            font-size: 0.9em;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0,123,255,0.2);
+        }
+        
+        .detail-link:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,123,255,0.3);
+            filter: brightness(1.1);
+        }
+        
+        [data-theme="dark"] .detail-link {
+            background: linear-gradient(135deg, #4dabf7, #339af0);
+        }
+        
+        .race-table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .race-table tr:hover {
+            background-color: #f8f9fa;
+        }
+        
+        [data-theme="dark"] .race-table tr:hover {
+            background-color: #3d3d3d;
+        }
+        
+        .result-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 15px;
+            font-size: 0.85em;
+            font-weight: bold;
+            min-width: 50px;
+            text-align: center;
+        }
+        
+        .result-hit {
+            background-color: var(--success-color);
+            color: white;
+        }
+        
+        .result-miss {
+            background-color: var(--danger-color);
+            color: white;
+        }
+        
+        .result-pending {
+            background-color: var(--warning-color);
+            color: #000;
+        }
+        
+        .prediction-vs-result {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: bold;
+        }
+        
+        .vs-arrow {
+            color: #666;
+            font-size: 1.2em;
+        }
+        
+        .accuracy-chart {
+            margin: 30px 0;
+            background-color: var(--container-bg);
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 2px 10px var(--shadow);
+        }
+        
+        .chart-title {
+            font-size: 1.4em;
+            font-weight: bold;
+            margin-bottom: 20px;
+            text-align: center;
+            color: var(--header-color);
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background-color: #e9ecef;
+            border-radius: 15px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            border-radius: 15px;
+            transition: width 0.8s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+        
+        .filter-section {
+            margin-bottom: 20px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 10px;
+        }
+        
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 20px 0;
+            gap: 10px;
+        }
+        
+        .pagination button {
+            background: var(--container-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            padding: 8px 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .pagination button:hover:not(:disabled) {
+            background: var(--header-color);
+            color: white;
+        }
+        
+        .pagination button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .pagination .current-page {
+            background: var(--header-color);
+            color: white;
+            border: 1px solid var(--header-color);
+        }
+        
+        .page-info {
+            color: var(--text-color);
+            font-size: 0.9em;
+        }
+        
+        [data-theme="dark"] .filter-section {
+            background-color: #3d3d3d;
+        }
+        
+        .filter-row {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .filter-group label {
+            font-size: 0.9em;
+            font-weight: bold;
+            color: #666;
+        }
+        
+        .filter-group select,
+        .filter-group input {
+            padding: 8px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            background-color: var(--container-bg);
+            color: var(--text-color);
+        }
+        
+        .no-data {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+            font-size: 1.2em;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+            
+            .accuracy-summary {
+                grid-template-columns: 1fr;
+            }
+            
+            .race-table {
+                font-size: 0.9em;
+            }
+            
+            .race-table th,
+            .race-table td {
+                padding: 8px;
+            }
+            
+            .filter-row {
+                flex-direction: column;
+                align-items: stretch;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <button class="theme-toggle" onclick="toggleTheme()">🌙 ダーク</button>
+            <h1>🎯 的中率レポート</h1>
+            <p>{{ current_time }} 現在のデータ</p>
+        </div>
+        
+        <div style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;">
+            <a href="/" class="back-button">← レース一覧に戻る</a>
+            <button onclick="updateResults()" class="back-button" style="background-color: #28a745; border: none; cursor: pointer;" id="update-btn">
+                📊 結果更新
+            </button>
+        </div>
+        
+        {% if summary %}
+        <div class="accuracy-summary">
+            <div class="summary-card {{ 'success' if summary.win_accuracy >= 70 else 'warning' if summary.win_accuracy >= 50 else 'danger' }}">
+                <div class="summary-number">{{ summary.win_accuracy }}%</div>
+                <div class="summary-label">単勝的中率</div>
+            </div>
+            <div class="summary-card {{ 'success' if summary.place_accuracy >= 70 else 'warning' if summary.place_accuracy >= 50 else 'danger' }}">
+                <div class="summary-number">{{ summary.place_accuracy }}%</div>
+                <div class="summary-label">複勝的中率</div>
+            </div>
+            <div class="summary-card {{ 'success' if summary.trifecta_accuracy >= 10 else 'warning' if summary.trifecta_accuracy >= 3 else 'danger' }}">
+                <div class="summary-number">{{ summary.trifecta_accuracy }}%</div>
+                <div class="summary-label">三連単的中率</div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-number">{{ summary.total_predictions }}</div>
+                <div class="summary-label">予想レース数</div>
+            </div>
+        </div>
+        
+        <div class="accuracy-summary" style="margin-top: 20px;">
+            <div class="summary-card" style="background: linear-gradient(135deg, #6f42c1 0%, #8e44ad 100%);">
+                <div class="summary-number">{{ summary.win_hits }}</div>
+                <div class="summary-label">単勝的中回数</div>
+            </div>
+            <div class="summary-card" style="background: linear-gradient(135deg, #6c757d 0%, #495057 100%);">
+                <div class="summary-number">{{ summary.total_predictions - summary.win_hits }}</div>
+                <div class="summary-label">外れ回数</div>
+            </div>
+        </div>
+        {% endif %}
+        
+        {% if roi_data %}
+        <!-- ROI評価セクション -->
+        <div class="roi-evaluation" style="margin: 30px 0; padding: 20px; background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%); border-radius: 10px; color: white;">
+            <h3 style="margin: 0 0 20px 0; text-align: center; color: white;">💰 ROI投資収益性評価</h3>
+            
+            {% if roi_data.recommended_strategy %}
+            <div style="text-align: center; margin-bottom: 20px; padding: 15px; background: rgba(255,255,255,0.1); border-radius: 8px;">
+                <div style="font-size: 1.2em; font-weight: bold;">🏆 推奨戦略: {{ roi_data.recommended_strategy|title }}</div>
+                <div style="font-size: 0.9em; margin-top: 5px; opacity: 0.9;">最適な投資スタイルを推奨しています</div>
+            </div>
+            {% endif %}
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                {% for strategy, metrics in roi_data.items() %}
+                {% if strategy not in ['recommended_strategy', 'evaluation_date'] %}
+                <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px; {% if strategy == roi_data.recommended_strategy %}border: 2px solid #f1c40f;{% endif %}">
+                    <div style="font-weight: bold; margin-bottom: 10px; text-align: center;">
+                        {{ strategy|title }}戦略
+                        {% if strategy == roi_data.recommended_strategy %}<span style="color: #f1c40f;">★</span>{% endif %}
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.9em;">
+                        <div><strong>ROI:</strong> {{ metrics.overall_roi }}%</div>
+                        <div><strong>勝率:</strong> {{ metrics.win_rate }}%</div>
+                        <div><strong>収益性:</strong> {{ metrics.profitability_score }}</div>
+                        <div><strong>リスク:</strong> {{ metrics.risk_level }}</div>
+                        <div><strong>純利益:</strong> {{ metrics.net_profit }}円</div>
+                        <div><strong>投資数:</strong> {{ metrics.invested_races }}レース</div>
+                    </div>
+                </div>
+                {% endif %}
+                {% endfor %}
+            </div>
+            
+            <div style="text-align: center; font-size: 0.85em; opacity: 0.8;">
+                ※ 過去7日間のデータを基にしたROI評価です。実際の投資は自己責任で行ってください。
+            </div>
+        </div>
+        {% endif %}
+        
+        <div class="filter-section">
+            <div class="filter-row">
+                <div class="filter-group">
+                    <label for="venue-filter">競艇場</label>
+                    <select id="venue-filter" onchange="filterRaces()">
+                        <option value="">全て</option>
+                        {% for venue_id, venue_name in venues.items() %}
+                        <option value="{{ venue_id }}">{{ venue_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="result-filter">結果</label>
+                    <select id="result-filter" onchange="filterRaces()">
+                        <option value="">全て</option>
+                        <option value="hit">的中</option>
+                        <option value="miss">外れ</option>
+                        <option value="pending">結果待ち</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label for="date-filter">日付</label>
+                    <input type="date" id="date-filter" onchange="filterRaces()">
+                </div>
+            </div>
+        </div>
+        
+        <!-- 日付ナビゲーション (上部) - データがなくても表示 -->
+        <div class="pagination" id="pagination-top">
+            <button id="prev-btn-top" onclick="changePage(-1)">« 前の日</button>
+            <button onclick="changePage(-7)">« 1週間前</button>
+            <input type="date" id="date-picker" onchange="goToDate()" 
+                   value="{{ current_date or '' }}" 
+                   style="margin: 0 10px; padding: 8px; border: 1px solid var(--border-color); border-radius: 5px; background: var(--container-bg); color: var(--text-color);">
+            <span class="page-info" id="page-info-top">{{ current_date_formatted or '' }}</span>
+            <button onclick="changePage(7)">1週間後 »</button>
+            <button id="next-btn-top" onclick="changePage(1)">次の日 »</button>
+            <button onclick="goToToday()" style="background: var(--success-color); color: white;">今日</button>
+        </div>
+        
+        {% if races %}
+        
+        <table class="race-table" id="race-table">
+            <thead>
+                <tr>
+                    <th onclick="sortTable(0)" style="cursor: pointer;">
+                        競艇場 <span class="sort-indicator"></span>
+                    </th>
+                    <th onclick="sortTable(1)" style="cursor: pointer;">
+                        レース <span class="sort-indicator"></span>
+                    </th>
+                    <th onclick="sortTable(2)" style="cursor: pointer;">
+                        発走時間 <span class="sort-indicator">↓</span>
+                    </th>
+                    <th onclick="sortTable(3)" style="cursor: pointer;">
+                        予想 <span class="sort-indicator"></span>
+                    </th>
+                    <th onclick="sortTable(4)" style="cursor: pointer;">
+                        結果 <span class="sort-indicator"></span>
+                    </th>
+                    <th onclick="sortTable(5)" style="cursor: pointer;">
+                        的中 <span class="sort-indicator"></span>
+                    </th>
+                    <th onclick="sortTable(6)" style="cursor: pointer;">
+                        信頼度 <span class="sort-indicator"></span>
+                    </th>
+                    <th style="text-align: center;">
+                        詳細
+                    </th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for race in races %}
+                <tr data-venue="{{ race.venue_id }}" 
+                    data-result="{{ race.hit_status }}" 
+                    data-date="{{ race.date }}">
+                    <td>{{ race.venue_name }}</td>
+                    <td>{{ race.race_number }}R</td>
+                    <td>{{ race.start_time if race.start_time else '未定' }}</td>
+                    <td>
+                        <div class="prediction-vs-result">
+                            <strong>{{ race.predicted_win }}号艇</strong>
+                            {% if race.predicted_place %}
+                            <div style="font-size: 0.85em; color: #666; margin-top: 2px;">
+                                複勝: {{ race.predicted_place[:2]|join('-') }}号艇<br>
+                                {% if race.predicted_place|length >= 3 %}
+                                三連単: {{ race.predicted_place[:3]|join('-') }}号艇
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </td>
+                    <td>
+                        {% if race.actual_result %}
+                        <div class="prediction-vs-result">
+                            <strong>{{ race.actual_result.win }}号艇</strong>
+                            {% if race.actual_result.place %}
+                            <div style="font-size: 0.85em; color: #666; margin-top: 2px;">
+                                複勝: {{ race.actual_result.place[:2]|join('-') }}号艇<br>
+                                {% if race.actual_result.place|length >= 3 %}
+                                三連単: {{ race.actual_result.place[:3]|join('-') }}号艇
+                                {% endif %}
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% else %}
+                        <span style="color: #999;">結果待ち</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <span class="result-badge result-{{ race.hit_status }}">
+                            {% if race.hit_status == 'hit' %}
+                            ✓ 的中
+                            {% elif race.hit_status == 'miss' %}
+                            ✗ 外れ
+                            {% else %}
+                            ⏳ 待機
+                            {% endif %}
+                        </span>
+                    </td>
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 5px;">
+                            <span>{{ '{:.1%}'.format(race.confidence) }}</span>
+                            <div style="color: #ffc107;">
+                                {% set stars = ((race.confidence * 5) | round | int) %}
+                                {% for i in range(5) %}
+                                    {% if i < stars %}★{% else %}☆{% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </td>
+                    <td style="text-align: center;">
+                        <a href="/predict/{{ '%02d'|format(race.venue_id) }}_{{ '%02d'|format(race.race_number) }}{% if race.date != today %}{{ '_' + race.date }}{% endif %}" 
+                           class="detail-link" 
+                           title="{{ race.venue_name }} {{ race.race_number }}Rの詳細予想を見る（{{ race.date }}）">
+                            📊 詳細
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        
+        {% else %}
+        <div class="no-data">
+            📊 まだ予想データがありません。<br>
+            レース予想を行うとここに的中率データが表示されます。
+        </div>
+        {% endif %}
+        
+        <!-- 日付ナビゲーション (下部) - データがなくても表示 -->
+        <div class="pagination" id="pagination-bottom">
+            <button id="prev-btn-bottom" onclick="changePage(-1)">« 前の日</button>
+            <button onclick="changePage(-7)">« 1週間前</button>
+            <span class="page-info" id="page-info-bottom">{{ current_date_formatted or '' }}</span>
+            <button onclick="changePage(7)">1週間後 »</button>
+            <button id="next-btn-bottom" onclick="changePage(1)">次の日 »</button>
+            <button onclick="goToToday()" style="background: var(--success-color); color: white;">今日</button>
+        </div>
+    </div>
+
+    <script>
+        function toggleTheme() {
+            const body = document.body;
+            const button = document.querySelector('.theme-toggle');
+            
+            if (body.getAttribute('data-theme') === 'dark') {
+                body.removeAttribute('data-theme');
+                button.textContent = '🌙 ダーク';
+                localStorage.setItem('theme', 'light');
+            } else {
+                body.setAttribute('data-theme', 'dark');
+                button.textContent = '☀️ ライト';
+                localStorage.setItem('theme', 'dark');
+            }
+        }
+        
+        // 日付ベースページング変数
+        let currentDateIndex = 0;
+        let allRows = [];
+        let filteredRows = [];
+        let uniqueDates = [];
+        let dateGroups = {};
+        
+        function initializePagination() {
+            allRows = Array.from(document.querySelectorAll('#race-table tbody tr'));
+            filteredRows = [...allRows];
+            
+            // 日付でグループ化
+            groupRowsByDate();
+            updatePagination();
+        }
+        
+        function groupRowsByDate() {
+            dateGroups = {};
+            filteredRows.forEach(row => {
+                const date = row.getAttribute('data-date');
+                if (!dateGroups[date]) {
+                    dateGroups[date] = [];
+                }
+                dateGroups[date].push(row);
+            });
+            
+            // 日付を降順でソート（新しい日付が最初）
+            uniqueDates = Object.keys(dateGroups).sort((a, b) => b.localeCompare(a));
+            
+            // 現在の日付インデックスが範囲外の場合は0にリセット
+            if (currentDateIndex >= uniqueDates.length) {
+                currentDateIndex = 0;
+            }
+        }
+        
+        function filterRaces() {
+            const venueFilter = document.getElementById('venue-filter').value;
+            const resultFilter = document.getElementById('result-filter').value;
+            const dateFilter = document.getElementById('date-filter').value;
+            
+            // フィルタリング
+            filteredRows = allRows.filter(row => {
+                let show = true;
+                
+                if (venueFilter && row.getAttribute('data-venue') !== venueFilter) {
+                    show = false;
+                }
+                
+                if (resultFilter && row.getAttribute('data-result') !== resultFilter) {
+                    show = false;
+                }
+                
+                if (dateFilter && !row.getAttribute('data-date').startsWith(dateFilter)) {
+                    show = false;
+                }
+                
+                return show;
+            });
+            
+            // 日付でグループ化しなおし
+            groupRowsByDate();
+            
+            // 統計を更新
+            updateFilteredStats();
+            
+            // ページを最初の日付に戻してページング更新
+            currentDateIndex = 0;
+            updatePagination();
+        }
+        
+        function updateFilteredStats() {
+            let totalRaces = filteredRows.length;
+            let winHits = 0;
+            let placeHits = 0;
+            
+            filteredRows.forEach(row => {
+                const result = row.getAttribute('data-result');
+                if (result === 'hit') {
+                    winHits++;
+                    placeHits++; // 単勝が当たれば複勝も当たる
+                } else if (result === 'place') {
+                    placeHits++;
+                }
+            });
+            
+            // 統計表示を更新
+            const winAccuracy = totalRaces > 0 ? (winHits / totalRaces * 100).toFixed(2) : 0;
+            const placeAccuracy = totalRaces > 0 ? (placeHits / totalRaces * 100).toFixed(2) : 0;
+            
+            // 統計エリアのタイトル更新
+            const summaryTitle = document.querySelector('.summary h2');
+            if (summaryTitle) {
+                if (totalRaces < allRows.length) {
+                    summaryTitle.textContent = `📊 フィルタ適用済み統計 (${uniqueDates.length}日間 ${totalRaces}/${allRows.length}件)`;
+                } else {
+                    summaryTitle.textContent = `📊 統計サマリー (${uniqueDates.length}日間)`;
+                }
+            }
+        }
+        
+        function changePage(direction) {
+            // URLから現在の日付を取得
+            let currentDate = getCurrentDateFromPath();
+            
+            // URLに日付がない場合は今日の日付を使用
+            if (!currentDate) {
+                currentDate = getTodayDateString();
+            }
+            
+            // 日付計算
+            const dateParts = currentDate.split('-');
+            const year = parseInt(dateParts[0]);
+            const month = parseInt(dateParts[1]) - 1; // monthは0ベース
+            const day = parseInt(dateParts[2]);
+            
+            const currentDateObj = new Date(year, month, day);
+            currentDateObj.setDate(currentDateObj.getDate() + direction);
+            
+            // 新しい日付文字列
+            const newDate = formatDateString(currentDateObj);
+            
+            // 新しいURLに遷移
+            window.location.href = `/accuracy/${newDate}`;
+        }
+        
+        function getCurrentDateFromPath() {
+            const pathParts = window.location.pathname.split('/');
+            if (pathParts.length > 2 && pathParts[1] === 'accuracy' && pathParts[2]) {
+                return pathParts[2];
+            }
+            // /accuracyの場合は今日の日付を返す
+            if (pathParts.length === 2 && pathParts[1] === 'accuracy') {
+                return getTodayDateString();
+            }
+            return null;
+        }
+        
+        function getTodayDateString() {
+            // タイムゾーン問題を回避するため、ローカル時刻を使用
+            const today = new Date();
+            return formatDateString(today);
+        }
+        
+        function formatDateString(date) {
+            // タイムゾーン問題を回避するため、ローカル時刻を使用
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+        
+        function goToDate() {
+            const datePicker = document.getElementById('date-picker');
+            if (datePicker && datePicker.value) {
+                window.location.href = `/accuracy/${datePicker.value}`;
+            }
+        }
+        
+        function goToToday() {
+            // 今日の日付でURLに遷移
+            const today = getTodayDateString();
+            window.location.href = `/accuracy/${today}`;
+        }
+        
+        function updatePagination() {
+            const totalDates = uniqueDates.length;
+            
+            // 全ての行を非表示
+            allRows.forEach(row => row.style.display = 'none');
+            
+            if (totalDates === 0) {
+                // データがない場合
+                document.getElementById('page-info-top').textContent = 'データがありません';
+                document.getElementById('page-info-bottom').textContent = 'データがありません';
+                return;
+            }
+            
+            // 現在の日付の行だけ表示
+            const currentDate = uniqueDates[currentDateIndex];
+            const currentDateRows = dateGroups[currentDate] || [];
+            
+            currentDateRows.forEach(row => {
+                row.style.display = '';
+            });
+            
+            // ページング情報を更新（日付ベース）
+            const dateFormatted = formatDateForDisplay(currentDate);
+            const pageInfo = `${currentDateIndex + 1} / ${totalDates} 日目 - ${dateFormatted} (${currentDateRows.length}件)`;
+            document.getElementById('page-info-top').textContent = pageInfo;
+            document.getElementById('page-info-bottom').textContent = pageInfo;
+            
+            // 日付移動ボタンは常に有効（過去・未来の日付に移動可能）
+            const allButtons = [
+                document.getElementById('prev-btn-top'), 
+                document.getElementById('prev-btn-bottom'),
+                document.getElementById('next-btn-top'), 
+                document.getElementById('next-btn-bottom')
+            ];
+            allButtons.forEach(btn => {
+                if (btn) btn.disabled = false;
+            });
+        }
+        
+        function formatDateForDisplay(dateString) {
+            // YYYY-MM-DD形式を YYYY年MM月DD日 形式に変換
+            const date = new Date(dateString);
+            return date.toLocaleDateString('ja-JP', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+        }
+        
+        async function updateResults() {
+            const updateBtn = document.getElementById('update-btn');
+            const originalText = updateBtn.textContent;
+            
+            updateBtn.textContent = '⏳ 更新中...';
+            updateBtn.disabled = true;
+            
+            try {
+                const response = await fetch('/api/update-results');
+                const data = await response.json();
+                
+                if (data.success) {
+                    // ダイアログなしで自動リロード
+                    updateBtn.textContent = '✅ 更新完了';
+                    updateBtn.style.backgroundColor = '#28a745';
+                    setTimeout(() => location.reload(), 500);
+                } else {
+                    // エラーをボタンに表示
+                    updateBtn.textContent = '❌ 更新失敗';
+                    updateBtn.style.backgroundColor = '#dc3545';
+                    console.error('結果更新エラー:', data.error);
+                }
+            } catch (error) {
+                // 通信エラーをボタンに表示
+                updateBtn.textContent = '❌ 通信エラー';
+                updateBtn.style.backgroundColor = '#dc3545';
+                console.error('結果更新通信エラー:', error.message);
+            } finally {
+                updateBtn.textContent = originalText;
+                updateBtn.disabled = false;
+            }
+        }
+        
+
+        // ソート機能
+        let sortDirection = {};
+        
+        function sortTable(columnIndex) {
+            console.log('ソート実行:', columnIndex); // デバッグログ
+            
+            const table = document.getElementById('race-table');
+            if (!table) {
+                console.error('テーブルが見つかりません');
+                return;
+            }
+            
+            const tbody = table.querySelector('tbody');
+            if (!tbody) {
+                console.error('tbodyが見つかりません');
+                return;
+            }
+            
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            const headers = table.querySelectorAll('th');
+            
+            console.log('行数:', rows.length); // デバッグログ
+            
+            if (rows.length <= 1) {
+                console.log('ソート対象が1行以下のためスキップ');
+                return;
+            }
+            
+            // 現在のソート方向を取得
+            const isAsc = sortDirection[columnIndex] !== true;
+            sortDirection[columnIndex] = isAsc;
+            
+            console.log('ソート方向:', isAsc ? '昇順' : '降順'); // デバッグログ
+            
+            // ソートインジケーターを更新
+            headers.forEach((header, index) => {
+                const indicator = header.querySelector('.sort-indicator');
+                if (indicator) {
+                    if (index === columnIndex) {
+                        indicator.textContent = isAsc ? '↑' : '↓';
+                    } else {
+                        indicator.textContent = '';
+                    }
+                }
+            });
+            
+            // データのソート
+            rows.sort((a, b) => {
+                const aValue = getCellValue(a, columnIndex);
+                const bValue = getCellValue(b, columnIndex);
+                
+                console.log('比較値:', aValue, 'vs', bValue); // デバッグログ（最初の数件のみ）
+                
+                // 日時列（0）の特別処理
+                if (columnIndex === 0) {
+                    // 日時文字列を解析
+                    const aDateMatch = aValue.match(/(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})/);
+                    const bDateMatch = bValue.match(/(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2})/);
+                    
+                    if (aDateMatch && bDateMatch) {
+                        const aDate = new Date(aDateMatch[1] + 'T' + aDateMatch[2] + ':00');
+                        const bDate = new Date(bDateMatch[1] + 'T' + bDateMatch[2] + ':00');
+                        return isAsc ? aDate - bDate : bDate - aDate;
+                    }
+                }
+                
+                // レース列（2）の特別処理（数値として扱う）
+                if (columnIndex === 2) {
+                    const aNum = parseInt(aValue.replace('R', ''));
+                    const bNum = parseInt(bValue.replace('R', ''));
+                    if (!isNaN(aNum) && !isNaN(bNum)) {
+                        return isAsc ? aNum - bNum : bNum - aNum;
+                    }
+                }
+                
+                // 予想・結果列（3,4）の特別処理（号艇番号）
+                if (columnIndex === 3 || columnIndex === 4) {
+                    const aMatch = aValue.match(/(\d+)号艇/);
+                    const bMatch = bValue.match(/(\d+)号艇/);
+                    if (aMatch && bMatch) {
+                        const aNum = parseInt(aMatch[1]);
+                        const bNum = parseInt(bMatch[1]);
+                        return isAsc ? aNum - bNum : bNum - aNum;
+                    }
+                }
+                
+                // 信頼度列（6）の特別処理（パーセンテージ）
+                if (columnIndex === 6) {
+                    const aMatch = aValue.match(/(\d+\.?\d*)%/);
+                    const bMatch = bValue.match(/(\d+\.?\d*)%/);
+                    if (aMatch && bMatch) {
+                        const aNum = parseFloat(aMatch[1]);
+                        const bNum = parseFloat(bMatch[1]);
+                        return isAsc ? aNum - bNum : bNum - aNum;
+                    }
+                }
+                
+                // 数値の場合
+                const aNum = parseFloat(aValue);
+                const bNum = parseFloat(bValue);
+                if (!isNaN(aNum) && !isNaN(bNum)) {
+                    return isAsc ? aNum - bNum : bNum - aNum;
+                }
+                
+                // 文字列の場合
+                return isAsc ? aValue.localeCompare(bValue, 'ja') : bValue.localeCompare(aValue, 'ja');
+            });
+            
+            // ソートされた行をテーブルに再挿入
+            rows.forEach(row => tbody.appendChild(row));
+            
+            console.log('ソート完了'); // デバッグログ
+        }
+        
+        function getCellValue(row, columnIndex) {
+            const cell = row.cells[columnIndex];
+            return cell ? cell.textContent.trim() : '';
+        }
+        
+        // ページ読み込み時にテーマを復元
+        document.addEventListener('DOMContentLoaded', function() {
+            const savedTheme = localStorage.getItem('theme');
+            const button = document.querySelector('.theme-toggle');
+            
+            if (savedTheme === 'dark') {
+                document.body.setAttribute('data-theme', 'dark');
+                button.textContent = '☀️ ライト';
+            }
+            
+            // 初期ソートは無効化（サーバー側で発走時間順にソート済み）
+            // setTimeout(() => {
+            //     const table = document.getElementById('race-table');
+            //     if (table && table.querySelector('tbody') && table.querySelector('tbody').children.length > 1) {
+            //         console.log('初期ソート実行');
+            //         sortDirection[0] = true; // 降順を設定
+            //         sortTable(0); // 日時列でソート
+            //     }
+            // }, 100);
+            
+            // プログレスバーのアニメーション
+            setTimeout(() => {
+                const progressBars = document.querySelectorAll('.progress-fill');
+                progressBars.forEach(bar => {
+                    const width = bar.style.width;
+                    bar.style.width = '0%';
+                    setTimeout(() => {
+                        bar.style.width = width;
+                    }, 100);
+                });
+            }, 500);
+        });
+        
+        // ページ読み込み時にページング初期化
+        document.addEventListener('DOMContentLoaded', function() {
+            if (document.getElementById('race-table')) {
+                initializePagination();
+            }
+            
+            // 日付ピッカーの初期値をURLに合わせる
+            const datePicker = document.getElementById('date-picker');
+            if (datePicker) {
+                const currentDate = getCurrentDateFromPath();
+                if (currentDate && currentDate !== datePicker.value) {
+                    datePicker.value = currentDate;
+                }
+            }
+        });
+    </script>
+</body>
+</html>

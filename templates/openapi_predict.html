@@ -300,10 +300,18 @@
 <body>
     <div class="container">
         <div class="button-group">
+            {% if show_back_button and back_url %}
+            <a href="{{ back_url }}" class="back-button">
+                ← {% if 'accuracy' in back_url %}的中率レポート{% else %}レース一覧{% endif %}に戻る
+            </a>
+            {% else %}
             <a href="/" class="back-button">← レース一覧に戻る</a>
+            {% endif %}
+            {% if venue_id and race_number %}
             <a href="#" class="official-button" onclick="openOfficialPage({{ venue_id }}, {{ race_number }})">
                 🏁 ボートレース公式
             </a>
+            {% endif %}
         </div>
 
         {% if error %}

@@ -82,6 +82,9 @@ class IntegratedScheduler:
             
             current_date = datetime.now().strftime('%Y-%m-%d')
             
+            # ML再学習チェック実行
+            self.check_ml_retrain()
+            
             # 本日分の予測データを生成・保存
             data = self.fetcher.get_today_races()
             if data and 'programs' in data:
@@ -207,6 +210,24 @@ class IntegratedScheduler:
                 
         except Exception as e:
             logger.error(f"結果データ更新エラー: {e}")
+    
+    def check_ml_retrain(self):
+        """ML再学習チェック"""
+        try:
+            logger.info("ML再学習チェック実行")
+            
+            # EnhancedPredictorを初期化し、ML再学習チェック実行
+            enhanced_predictor = self.EnhancedPredictor()
+            
+            # MLPredictorがある場合は再学習チェック
+            if hasattr(enhanced_predictor, 'ml_predictor') and enhanced_predictor.ml_predictor:
+                enhanced_predictor.ml_predictor.retrain_if_needed()
+                logger.info("ML再学習チェック完了")
+            else:
+                logger.info("ML予想システム無効のため、再学習チェックをスキップ")
+                
+        except Exception as e:
+            logger.error(f"ML再学習チェックエラー: {e}")
     
     def update_accuracy_report(self):
         """PM11時: 的中率レポート更新"""

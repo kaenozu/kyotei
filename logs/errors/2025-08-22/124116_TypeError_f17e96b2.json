@@ -1,0 +1,31 @@
+{
+  "error_id": "f17e96b2-3412-4386-a753-447541f2b86b",
+  "timestamp": "2025-08-22T03:41:16.428689+00:00",
+  "error_type": "TypeError",
+  "error_message": "argument of type 'int' is not iterable",
+  "traceback": [
+    "Traceback (most recent call last):\n",
+    "  File \"C:\\Users\\neoen\\OneDrive\\gemini\\kyotei\\openapi_app.py\", line 334, in calculate_prediction\n    advanced_result = advanced_predictor.calculate_advanced_prediction(race_data)\n                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+    "  File \"C:\\Users\\neoen\\OneDrive\\gemini\\kyotei\\prediction_enhancer.py\", line 251, in calculate_advanced_prediction\n    weather_adjustment += self._calculate_weather_adjustment(\n                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+    "  File \"C:\\Users\\neoen\\OneDrive\\gemini\\kyotei\\prediction_enhancer.py\", line 560, in _calculate_weather_adjustment\n    if '北' in wind_direction_str:\n       ^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+    "TypeError: argument of type 'int' is not iterable\n"
+  ],
+  "occurrence_count": 1,
+  "context": {
+    "function": "calculate_prediction"
+  },
+  "request": {
+    "method": "GET",
+    "url": "http://localhost:5000/predict/08_04",
+    "path": "/predict/08_04",
+    "remote_addr": "127.0.0.1",
+    "user_agent": "curl/8.14.1",
+    "request_id": "3902ed85-2449-477d-a2e9-597a91e40735",
+    "headers": {
+      "Host": "localhost:5000",
+      "User-Agent": "curl/8.14.1",
+      "Accept": "*/*"
+    },
+    "args": {}
+  }
+}

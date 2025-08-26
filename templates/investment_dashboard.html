@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>投資管理ダッシュボード - BoatraceOpenAPI</title>
+    <style>
+        :root {
+            --bg-color: #f5f5f5;
+            --container-bg: white;
+            --text-color: #333;
+            --header-color: #007bff;
+            --success-color: #28a745;
+            --danger-color: #dc3545;
+            --warning-color: #ffc107;
+            --border-color: #e0e0e0;
+            --shadow: rgba(0,0,0,0.1);
+        }
+        
+        [data-theme="dark"] {
+            --bg-color: #1a1a1a;
+            --container-bg: #2d2d2d;
+            --text-color: #ffffff;
+            --header-color: #4dabf7;
+            --border-color: #404040;
+            --shadow: rgba(0,0,0,0.3);
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            background-color: var(--container-bg);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px var(--shadow);
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .header h1 {
+            color: var(--header-color);
+            margin: 0;
+        }
+        
+        .theme-toggle {
+            background: var(--header-color);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .stats-overview {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            background-color: var(--container-bg);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px var(--shadow);
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .stat-label {
+            color: #666;
+            font-size: 0.9em;
+        }
+        
+        .stat-positive {
+            color: var(--success-color);
+        }
+        
+        .stat-negative {
+            color: var(--danger-color);
+        }
+        
+        .stat-neutral {
+            color: var(--header-color);
+        }
+        
+        .panel {
+            background-color: var(--container-bg);
+            border-radius: 10px;
+            box-shadow: 0 2px 10px var(--shadow);
+            padding: 20px;
+        }
+        
+        .panel h3 {
+            margin-top: 0;
+            color: var(--header-color);
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+        
+        .bet-record {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
+            gap: 10px;
+            padding: 10px;
+            border-bottom: 1px solid var(--border-color);
+            align-items: center;
+        }
+        
+        .bet-record:last-child {
+            border-bottom: none;
+        }
+        
+        .bet-header {
+            font-weight: bold;
+            background-color: var(--bg-color);
+            padding: 15px 10px;
+        }
+        
+        .status-won {
+            color: var(--success-color);
+            font-weight: bold;
+        }
+        
+        .status-lost {
+            color: var(--danger-color);
+            font-weight: bold;
+        }
+        
+        .status-placed {
+            color: var(--warning-color);
+            font-weight: bold;
+        }
+        
+        .strategy-form {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .form-group label {
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        
+        .form-group input {
+            padding: 8px;
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            background-color: var(--container-bg);
+            color: var(--text-color);
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary {
+            background-color: var(--header-color);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            opacity: 0.9;
+        }
+        
+        .roi-indicator {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.9em;
+            font-weight: bold;
+        }
+        
+        .roi-positive {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        
+        .roi-negative {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        
+        .risk-level {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+        
+        .risk-low {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+        
+        .risk-medium {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+        
+        .risk-high {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        
+        @media (max-width: 768px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .stats-overview {
+                grid-template-columns: 1fr 1fr;
+            }
+            
+            .bet-record {
+                grid-template-columns: 1fr;
+                text-align: center;
+            }
+            
+            .strategy-form {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>💰 投資管理ダッシュボード</h1>
+            <button class="theme-toggle" onclick="toggleTheme()">🌙 ダーク</button>
+        </div>
+
+        <!-- 統計概要 -->
+        <div class="stats-overview">
+            <div class="stat-card">
+                <div class="stat-value stat-neutral">¥{{ "{:,}".format(stats.total_stake|int) }}</div>
+                <div class="stat-label">総投資額 ({{ stats.period_days }}日間)</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value stat-neutral">¥{{ "{:,}".format(stats.total_payout|int) }}</div>
+                <div class="stat-label">総払戻額</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value {{ 'stat-positive' if stats.profit_loss >= 0 else 'stat-negative' }}">
+                    ¥{{ "{:+,}".format(stats.profit_loss|int) }}
+                </div>
+                <div class="stat-label">損益</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value stat-neutral">{{ "{:.1f}".format(stats.win_rate) }}%</div>
+                <div class="stat-label">的中率 ({{ stats.win_count }}/{{ stats.bet_count }})</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value {{ 'stat-positive' if stats.roi >= 0 else 'stat-negative' }}">
+                    {{ "{:+.1f}".format(stats.roi) }}%
+                </div>
+                <div class="stat-label">ROI</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value stat-neutral">{{ "{:.0f}".format(stats.avg_confidence * 100) }}%</div>
+                <div class="stat-label">平均信頼度</div>
+            </div>
+        </div>
+
+        <div class="dashboard-grid">
+            <!-- 最近の賭け記録 -->
+            <div class="panel">
+                <h3>📊 最近の賭け記録</h3>
+                <div class="bet-record bet-header">
+                    <div>会場・レース</div>
+                    <div>賭け種別</div>
+                    <div>賭け金</div>
+                    <div>損益</div>
+                    <div>状況</div>
+                </div>
+                {% for bet in recent_bets %}
+                <div class="bet-record">
+                    <div>{{ bet.venue_name }} {{ bet.race_number }}R</div>
+                    <div>{{ bet.bet_type }}</div>
+                    <div>¥{{ "{:,}".format(bet.stake_amount|int) }}</div>
+                    <div class="{{ 'stat-positive' if bet.profit_loss and bet.profit_loss >= 0 else 'stat-negative' }}">
+                        {% if bet.profit_loss %}
+                            ¥{{ "{:+,}".format(bet.profit_loss|int) }}
+                        {% else %}
+                            未確定
+                        {% endif %}
+                    </div>
+                    <div class="status-{{ bet.status|lower|replace('的中', 'won')|replace('不的中', 'lost')|replace('購入済み', 'placed') }}">
+                        {{ bet.status }}
+                    </div>
+                </div>
+                {% endfor %}
+                
+                {% if not recent_bets %}
+                <div style="text-align: center; padding: 20px; color: #666;">
+                    まだ賭け記録がありません
+                </div>
+                {% endif %}
+            </div>
+
+            <!-- 投資戦略設定 -->
+            <div class="panel">
+                <h3>⚙️ 投資戦略設定</h3>
+                <div style="margin-bottom: 15px;">
+                    <strong>現在の戦略:</strong> {{ strategy.name }}
+                    <span class="risk-level risk-{{ strategy.risk_level }}">{{ strategy.risk_level|upper }}リスク</span>
+                </div>
+                
+                <form class="strategy-form" method="POST" action="/investment/update-strategy">
+                    <div class="form-group">
+                        <label>1日最大賭け金</label>
+                        <input type="number" name="max_daily_stake" value="{{ strategy.max_daily_stake|int }}" min="1000" max="100000" step="1000">
+                    </div>
+                    <div class="form-group">
+                        <label>1レース最大賭け金</label>
+                        <input type="number" name="max_race_stake" value="{{ strategy.max_race_stake|int }}" min="100" max="10000" step="100">
+                    </div>
+                    <div class="form-group">
+                        <label>最低信頼度閾値 (%)</label>
+                        <input type="number" name="min_confidence_threshold" value="{{ (strategy.min_confidence_threshold * 100)|int }}" min="50" max="95" step="5">
+                    </div>
+                    <div class="form-group">
+                        <label>損切りライン (%)</label>
+                        <input type="number" name="stop_loss_percentage" value="{{ strategy.stop_loss_percentage|int }}" min="10" max="50" step="5">
+                    </div>
+                    <div class="form-group">
+                        <label>目標ROI (%)</label>
+                        <input type="number" name="target_roi_percentage" value="{{ strategy.target_roi_percentage|int }}" min="5" max="50" step="5">
+                    </div>
+                    <div class="form-group">
+                        <button type="submit" class="btn btn-primary">戦略更新</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- 日次パフォーマンス -->
+        <div class="panel">
+            <h3>📈 日次パフォーマンス</h3>
+            <div style="margin-bottom: 15px;">
+                <strong>本日の進捗:</strong>
+                {% if today_stats %}
+                    投資額 ¥{{ "{:,}".format(today_stats.total_stake|int) }} / 
+                    上限 ¥{{ "{:,}".format(strategy.max_daily_stake|int) }}
+                    ({{ "{:.1f}".format((today_stats.total_stake / strategy.max_daily_stake) * 100) }}%)
+                {% else %}
+                    本日の投資はまだありません
+                {% endif %}
+            </div>
+            
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px;">
+                <div class="stat-card">
+                    <div class="stat-value stat-neutral">{{ stats.bet_count }}</div>
+                    <div class="stat-label">総賭け回数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value stat-neutral">¥{{ "{:,}".format(stats.daily_average_stake|int) }}</div>
+                    <div class="stat-label">日平均投資額</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value {{ 'stat-positive' if stats.daily_average_profit >= 0 else 'stat-negative' }}">
+                        ¥{{ "{:+,}".format(stats.daily_average_profit|int) }}
+                    </div>
+                    <div class="stat-label">日平均損益</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 高度分析セクション -->
+        {% if performance_metrics %}
+        <div class="panel">
+            <h3>📊 リスク・パフォーマンス分析</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                <div class="stat-card">
+                    <div class="stat-value {{ 'stat-positive' if performance_metrics.sharpe_ratio > 1 else 'stat-negative' if performance_metrics.sharpe_ratio < 0 else 'stat-neutral' }}">
+                        {{ "{:.2f}".format(performance_metrics.sharpe_ratio) }}
+                    </div>
+                    <div class="stat-label">シャープレシオ</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value {{ 'stat-negative' if performance_metrics.max_drawdown < -0.1 else 'stat-neutral' }}">
+                        {{ "{:.1%}".format(performance_metrics.max_drawdown) }}
+                    </div>
+                    <div class="stat-label">最大ドローダウン</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value stat-neutral">
+                        {{ "{:.1%}".format(performance_metrics.volatility) }}
+                    </div>
+                    <div class="stat-label">年間ボラティリティ</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value {{ 'stat-negative' if performance_metrics.consecutive_losses > 3 else 'stat-neutral' }}">
+                        {{ performance_metrics.consecutive_losses }}回
+                    </div>
+                    <div class="stat-label">現在の連敗</div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- 会場別分析 -->
+        {% if venue_analysis %}
+        <div class="panel">
+            <h3>🏟️ 会場別パフォーマンス</h3>
+            <div style="max-height: 300px; overflow-y: auto;">
+                <div class="bet-record bet-header">
+                    <div>会場名</div>
+                    <div>賭け回数</div>
+                    <div>的中率</div>
+                    <div>ROI</div>
+                    <div>損益</div>
+                </div>
+                {% for venue in venue_analysis[:10] %}
+                <div class="bet-record">
+                    <div>{{ venue.venue_name }}</div>
+                    <div>{{ venue.total_bets }}回</div>
+                    <div>{{ "{:.1f}%".format(venue.win_rate) }}</div>
+                    <div class="{{ 'stat-positive' if venue.roi > 0 else 'stat-negative' }}">
+                        {{ "{:+.1f}%".format(venue.roi) }}
+                    </div>
+                    <div class="{{ 'stat-positive' if venue.profit_loss > 0 else 'stat-negative' }}">
+                        ¥{{ "{:+,}".format(venue.profit_loss|int) }}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- 最適化推奨事項 -->
+        {% if recommendations %}
+        <div class="panel">
+            <h3>💡 戦略最適化推奨</h3>
+            <div style="margin-bottom: 15px;">
+                <strong>総合評価:</strong> 
+                <span class="roi-indicator {{ 'roi-positive' if '優秀' in recommendations.overall_assessment else 'roi-negative' if '改善' in recommendations.overall_assessment else '' }}">
+                    {{ recommendations.overall_assessment }}
+                </span>
+            </div>
+            
+            {% if recommendations.risk_management %}
+            <div style="margin-bottom: 10px;">
+                <strong>🛡️ リスク管理:</strong>
+                <ul style="margin: 5px 0; padding-left: 20px;">
+                    {% for rec in recommendations.risk_management %}
+                    <li>{{ rec }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+            
+            {% if recommendations.venue_strategy %}
+            <div style="margin-bottom: 10px;">
+                <strong>🏟️ 会場戦略:</strong>
+                <ul style="margin: 5px 0; padding-left: 20px;">
+                    {% for rec in recommendations.venue_strategy %}
+                    <li>{{ rec }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+            
+            {% if recommendations.timing_strategy %}
+            <div style="margin-bottom: 10px;">
+                <strong>⏰ タイミング戦略:</strong>
+                <ul style="margin: 5px 0; padding-left: 20px;">
+                    {% for rec in recommendations.timing_strategy %}
+                    <li>{{ rec }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- レポート生成・エクスポート -->
+        <div class="panel">
+            <h3>📊 レポート生成・データエクスポート</h3>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                <div class="form-group">
+                    <label>分析期間（日）</label>
+                    <select id="reportPeriod" style="padding: 8px; border: 1px solid var(--border-color); border-radius: 5px; background-color: var(--container-bg); color: var(--text-color);">
+                        <option value="7">7日間</option>
+                        <option value="30" selected>30日間</option>
+                        <option value="90">90日間</option>
+                        <option value="180">180日間</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>出力形式</label>
+                    <select id="reportFormat" style="padding: 8px; border: 1px solid var(--border-color); border-radius: 5px; background-color: var(--container-bg); color: var(--text-color);">
+                        <option value="pdf">PDF レポート</option>
+                        <option value="excel">Excel ファイル</option>
+                        <option value="csv">CSV データ</option>
+                        <option value="json">JSON データ</option>
+                        <option value="all">全形式</option>
+                    </select>
+                </div>
+            </div>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <button class="btn btn-primary" onclick="generateReport()">📈 レポート生成</button>
+                <button class="btn btn-primary" onclick="loadReportList()">📁 レポート一覧</button>
+                <button class="btn btn-primary" onclick="checkAlerts()">🚨 アラートチェック</button>
+            </div>
+            
+            <!-- 生成状況表示 -->
+            <div id="reportStatus" style="margin-top: 15px; padding: 10px; border-radius: 5px; display: none;"></div>
+            
+            <!-- レポート一覧 -->
+            <div id="reportList" style="margin-top: 15px; display: none;">
+                <h4>📂 生成済みレポート</h4>
+                <div id="reportItems"></div>
+            </div>
+        </div>
+
+        <!-- アラート履歴 -->
+        <div class="panel">
+            <h3>🚨 アラート履歴</h3>
+            <div style="margin-bottom: 15px;">
+                <button class="btn btn-primary" onclick="loadAlertHistory()">履歴更新</button>
+                <span style="margin-left: 10px;">表示期間: 
+                    <select id="alertPeriod" onchange="loadAlertHistory()" style="padding: 4px; border: 1px solid var(--border-color); border-radius: 3px;">
+                        <option value="1">1日間</option>
+                        <option value="7" selected>7日間</option>
+                        <option value="30">30日間</option>
+                    </select>
+                </span>
+            </div>
+            <div id="alertHistory">
+                <div style="text-align: center; padding: 20px; color: #666;">
+                    アラート履歴を読み込み中...
+                </div>
+            </div>
+        </div>
+
+        <!-- クイックアクション -->
+        <div class="panel">
+            <h3>🚀 クイックアクション</h3>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <a href="/predict/03/10" class="btn btn-primary">江戸川 10R予想</a>
+                <a href="/predict/11/12" class="btn btn-primary">びわこ 12R予想</a>
+                <a href="/api/prediction/24/8?format=html" class="btn btn-primary" target="_blank">大村 8R根拠詳細</a>
+                <button class="btn btn-primary" onclick="location.reload()">データ更新</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // テーマ切り替え機能
+        function toggleTheme() {
+            const body = document.body;
+            const button = document.querySelector('.theme-toggle');
+            
+            if (body.getAttribute('data-theme') === 'dark') {
+                body.removeAttribute('data-theme');
+                button.textContent = '🌙 ダーク';
+                localStorage.setItem('theme', 'light');
+            } else {
+                body.setAttribute('data-theme', 'dark');
+                button.textContent = '☀️ ライト';
+                localStorage.setItem('theme', 'dark');
+            }
+        }
+        
+        // ページ読み込み時にテーマを復元
+        document.addEventListener('DOMContentLoaded', function() {
+            const savedTheme = localStorage.getItem('theme');
+            if (savedTheme === 'dark') {
+                document.body.setAttribute('data-theme', 'dark');
+                document.querySelector('.theme-toggle').textContent = '☀️ ライト';
+            }
+            
+            // アラート履歴を初期読み込み
+            loadAlertHistory();
+        });
+        
+        // レポート生成
+        async function generateReport() {
+            const period = document.getElementById('reportPeriod').value;
+            const format = document.getElementById('reportFormat').value;
+            const statusDiv = document.getElementById('reportStatus');
+            
+            statusDiv.style.display = 'block';
+            statusDiv.style.backgroundColor = '#e3f2fd';
+            statusDiv.style.color = '#1976d2';
+            statusDiv.innerHTML = '📊 レポート生成中...';
+            
+            try {
+                const response = await fetch('/api/investment/reports/generate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        period_days: parseInt(period),
+                        export_format: format,
+                        include_charts: true,
+                        include_venue_analysis: true,
+                        include_recommendations: true
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    statusDiv.style.backgroundColor = '#e8f5e8';
+                    statusDiv.style.color = '#2e7d32';
+                    statusDiv.innerHTML = `✅ レポート生成完了<br>`;
+                    
+                    for (const [format, path] of Object.entries(data.generated_files)) {
+                        statusDiv.innerHTML += `<a href="${path}" target="_blank" style="margin-right: 10px; color: #1976d2;">${format.toUpperCase()}ダウンロード</a>`;
+                    }
+                    
+                    // レポート一覧を更新
+                    setTimeout(loadReportList, 1000);
+                } else {
+                    throw new Error(data.error || 'レポート生成失敗');
+                }
+            } catch (error) {
+                statusDiv.style.backgroundColor = '#ffebee';
+                statusDiv.style.color = '#c62828';
+                statusDiv.innerHTML = `❌ エラー: ${error.message}`;
+            }
+        }
+        
+        // レポート一覧読み込み
+        async function loadReportList() {
+            const listDiv = document.getElementById('reportList');
+            const itemsDiv = document.getElementById('reportItems');
+            
+            try {
+                const response = await fetch('/api/investment/reports');
+                const data = await response.json();
+                
+                if (data.success) {
+                    listDiv.style.display = 'block';
+                    
+                    if (data.reports.length === 0) {
+                        itemsDiv.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">生成済みレポートがありません</div>';
+                        return;
+                    }
+                    
+                    let html = '<div style="max-height: 200px; overflow-y: auto;">';
+                    data.reports.forEach(report => {
+                        const date = new Date(report.created_at).toLocaleString('ja-JP');
+                        const size = (report.size / 1024).toFixed(1);
+                        html += `
+                            <div style="padding: 8px; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <strong>${report.filename}</strong><br>
+                                    <small style="color: #666;">${date} • ${size}KB • ${report.format.toUpperCase()}</small>
+                                </div>
+                                <a href="${report.path}" target="_blank" class="btn btn-primary" style="padding: 4px 8px; font-size: 0.8em;">ダウンロード</a>
+                            </div>
+                        `;
+                    });
+                    html += '</div>';
+                    itemsDiv.innerHTML = html;
+                } else {
+                    throw new Error(data.error || 'レポート一覧取得失敗');
+                }
+            } catch (error) {
+                itemsDiv.innerHTML = `<div style="color: #c62828;">エラー: ${error.message}</div>`;
+            }
+        }
+        
+        // アラートチェック
+        async function checkAlerts() {
+            try {
+                const response = await fetch('/api/investment/alerts/check', {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    if (data.alert_count === 0) {
+                        alert('✅ 現在アラートはありません');
+                    } else {
+                        let message = `🚨 ${data.alert_count}件のアラートが検出されました:\n\n`;
+                        data.triggered_alerts.forEach(alert => {
+                            message += `[${alert.severity.toUpperCase()}] ${alert.title}\n${alert.message}\n\n`;
+                        });
+                        alert(message);
+                    }
+                    
+                    // アラート履歴を更新
+                    loadAlertHistory();
+                } else {
+                    throw new Error(data.error || 'アラートチェック失敗');
+                }
+            } catch (error) {
+                alert(`エラー: ${error.message}`);
+            }
+        }
+        
+        // アラート履歴読み込み
+        async function loadAlertHistory() {
+            const historyDiv = document.getElementById('alertHistory');
+            const period = document.getElementById('alertPeriod').value;
+            
+            try {
+                const response = await fetch(`/api/investment/alerts?days=${period}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    if (data.alerts.length === 0) {
+                        historyDiv.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">指定期間にアラートはありません</div>';
+                        return;
+                    }
+                    
+                    let html = '<div style="max-height: 300px; overflow-y: auto;">';
+                    data.alerts.forEach(alert => {
+                        const date = new Date(alert.timestamp).toLocaleString('ja-JP');
+                        const severityColor = {
+                            'info': '#2196f3',
+                            'warning': '#ff9800',
+                            'critical': '#f44336',
+                            'emergency': '#9c27b0'
+                        };
+                        
+                        html += `
+                            <div style="padding: 10px; border-left: 4px solid ${severityColor[alert.severity]}; margin-bottom: 10px; background-color: var(--bg-color);">
+                                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                                    <div style="flex: 1;">
+                                        <strong style="color: ${severityColor[alert.severity]};">[${alert.severity.toUpperCase()}] ${alert.title}</strong><br>
+                                        <div style="margin: 5px 0;">${alert.message}</div>
+                                        <small style="color: #666;">${date} • ${alert.alert_type}</small>
+                                    </div>
+                                    ${!alert.acknowledged ? `<button onclick="acknowledgeAlert('${alert.id}')" class="btn btn-primary" style="padding: 4px 8px; font-size: 0.8em;">確認</button>` : '<span style="color: #4caf50;">✓ 確認済み</span>'}
+                                </div>
+                            </div>
+                        `;
+                    });
+                    html += '</div>';
+                    historyDiv.innerHTML = html;
+                } else {
+                    throw new Error(data.error || 'アラート履歴取得失敗');
+                }
+            } catch (error) {
+                historyDiv.innerHTML = `<div style="color: #c62828;">エラー: ${error.message}</div>`;
+            }
+        }
+        
+        // アラート確認
+        async function acknowledgeAlert(alertId) {
+            try {
+                const response = await fetch(`/api/investment/alerts/${alertId}/acknowledge`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    loadAlertHistory(); // 履歴を更新
+                } else {
+                    throw new Error(data.error || 'アラート確認失敗');
+                }
+            } catch (error) {
+                alert(`エラー: ${error.message}`);
+            }
+        }
+    </script>
+</body>
+</html>

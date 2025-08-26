@@ -15,12 +15,24 @@ import random
 import os
 import sys
 
-# 高度MLモデルのインポート
+# MLモデルのインポート
 try:
     from advanced_ml_predictor import AdvancedMLPredictor
     HAS_ADVANCED_ML = True
 except ImportError:
     HAS_ADVANCED_ML = False
+
+try:
+    from improved_ml_predictor import ImprovedMLPredictor
+    HAS_IMPROVED_ML = True
+except ImportError:
+    HAS_IMPROVED_ML = False
+
+try:
+    from online_learning_system import OnlineLearningSystem
+    HAS_ONLINE_ML = True
+except ImportError:
+    HAS_ONLINE_ML = False
 
 # ログ設定
 logging.basicConfig(level=logging.INFO)
@@ -33,15 +45,13 @@ class EnhancedPredictor:
         self.programs_base_url = "https://boatraceopenapi.github.io/programs/v2"
         self.previews_base_url = "https://boatraceopenapi.github.io/previews/v2"
         
-        # ML予想システム初期化
+        # ML予想システム（遅延初期化）
         self.ml_predictor = None
-        if HAS_ADVANCED_ML:
-            try:
-                self.ml_predictor = AdvancedMLPredictor()
-                logger.info("高度ML予想システム有効")
-            except Exception as e:
-                logger.error(f"ML予想システム初期化エラー: {e}")
-                self.ml_predictor = None
+        self.improved_ml_predictor = None
+        self.online_ml_system = None
+        self._ml_initialized = False
+        self._improved_ml_initialized = False
+        self._online_ml_initialized = False
         
         # 重み係数（ML統合版）
         self.weights = {
@@ -148,9 +158,48 @@ class EnhancedPredictor:
             logger.error(f"Previews API取得エラー: {e}")
             return None
     
+    def _init_ml_predictor_if_needed(self):
+        """必要時にML予想システムを初期化（遅延ロード）"""
+        # オンライン学習システムを最優先初期化
+        if not self._online_ml_initialized and HAS_ONLINE_ML:
+            try:
+                logger.info("オンライン学習システムを遅延初期化中...")
+                self.online_ml_system = OnlineLearningSystem()
+                self._online_ml_initialized = True
+                status = self.online_ml_system.get_learning_status()
+                logger.info(f"オンライン学習システム有効: {status['total_updates']}回学習済み")
+            except Exception as e:
+                logger.error(f"オンライン学習システム遅延初期化エラー: {e}")
+                self.online_ml_system = None
+        
+        # フォールバック: 改良版MLモデルを優先初期化
+        if not self._improved_ml_initialized and HAS_IMPROVED_ML and not self._online_ml_initialized:
+            try:
+                logger.info("改良版ML予想システムを遅延初期化中...")
+                self.improved_ml_predictor = ImprovedMLPredictor()
+                self._improved_ml_initialized = True
+                logger.info("改良版ML予想システム有効")
+            except Exception as e:
+                logger.error(f"改良版ML予想システム遅延初期化エラー: {e}")
+                self.improved_ml_predictor = None
+        
+        # フォールバック: 既存のMLモデル
+        if not self._ml_initialized and HAS_ADVANCED_ML and not self._improved_ml_initialized:
+            try:
+                logger.info("ML予想システムを遅延初期化中...")
+                self.ml_predictor = AdvancedMLPredictor()
+                self.ml_predictor.retrain_if_needed()
+                self._ml_initialized = True
+                logger.info("高度ML予想システム有効")
+            except Exception as e:
+                logger.error(f"ML予想システム遅延初期化エラー: {e}")
+                self.ml_predictor = None
+    
     def calculate_enhanced_prediction(self, venue_id: int, race_number: int, date_str: str = 'today') -> Optional[Dict]:
         """強化された予想計算"""
         try:
+            # ML予想システムを必要時に初期化
+            self._init_ml_predictor_if_needed()
             # 両APIからデータを取得
             programs_data = self.fetch_programs_data(date_str)
             previews_data = self.fetch_previews_data(date_str)
@@ -591,7 +640,46 @@ class EnhancedPredictor:
     def _get_ml_prediction(self, prog_boat: Dict, race_conditions: Dict, boat_number: int) -> float:
         """ML予想システムからの予測値を取得"""
         try:
-            if not self.ml_predictor or not hasattr(self.ml_predictor, 'predict_for_boat'):
+            # オンライン学習システムを最優先使用
+            if self.online_ml_system:
+                race_data = {
+                    'distance': race_conditions.get('race_distance', 1400),
+                    'venue_id': race_conditions.get('race_stadium_number', 1),
+                    'race_number': race_conditions.get('race_number', 1)
+                }
+                
+                online_result = self.online_ml_system.predict_online(
+                    race_conditions.get('race_stadium_number', 1),
+                    race_conditions.get('race_number', 1),
+                    race_data
+                )
+                
+                # 指定された艦番の確率を取得
+                boat_prob = online_result.get('all_probabilities', {}).get(boat_number, 0.16)
+                return boat_prob
+            
+            # フォールバック: 改良版MLモデルを優先使用
+            elif self.improved_ml_predictor:
+                race_data = {
+                    'distance': race_conditions.get('race_distance', 1400),
+                    'venue_id': race_conditions.get('race_stadium_number', 1),
+                    'race_number': race_conditions.get('race_number', 1)
+                }
+                
+                enhanced_result = self.improved_ml_predictor.predict_enhanced(
+                    race_conditions.get('race_stadium_number', 1),
+                    race_conditions.get('race_number', 1),
+                    race_data
+                )
+                
+                # 指定された艦番の確率を取得
+                boat_prob = enhanced_result.get('all_probabilities', {}).get(boat_number, 0.16)
+                return boat_prob
+            
+            # フォールバック: 既存MLモデル
+            elif self.ml_predictor and hasattr(self.ml_predictor, 'predict_for_boat'):
+                pass  # 既存処理継続
+            else:
                 # MLシステムが利用不可の場合はフォールバック
                 national = prog_boat.get('racer_national_top_1_percent', 0) / 100
                 local = prog_boat.get('racer_local_top_1_percent', 0) / 100

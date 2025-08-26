@@ -1,0 +1,32 @@
+{
+  "test_summary": {
+    "date": "2025-08-23T13:49:06.283822",
+    "duration_minutes": 0.26242522795995077,
+    "races_processed": 200,
+    "automation_rate": 0.98,
+    "accuracy_rate": 0.48,
+    "roi_achieved": 1.3228985234530095,
+    "processing_efficiency": 38.106092458176775,
+    "error_count": 0
+  },
+  "target_achievement": {
+    "races_capability": 1.0,
+    "automation_rate": 1.0,
+    "processing_efficiency": 1.0,
+    "roi_maintenance": 1.0,
+    "accuracy_maintenance": 0.5161290322580645
+  },
+  "overall_performance_score": 90.32258064516128,
+  "system_health": {
+    "cpu_usage": 67.114338066382,
+    "memory_usage": 60.780016913805554,
+    "processing_rate": 0.5416741052939624,
+    "automation_rate": 0.98,
+    "accuracy_rate": 0.48,
+    "uptime_seconds": 15.645513534545898
+  },
+  "month2_readiness_status": "GOOD - Month 2 launch approved",
+  "recommendations": [
+    "システム準備完了 - Month 2運用承認"
+  ]
+}

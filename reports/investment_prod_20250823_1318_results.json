@@ -1,0 +1,41 @@
+{
+  "session_id": "investment_prod_20250823_1318",
+  "production_config": {
+    "daily_budget": 10000,
+    "base_accuracy": 0.925,
+    "min_confidence": 0.85,
+    "max_bet_ratio": 0.0135,
+    "kelly_fraction": 0.18000000000000002,
+    "safety_margin": 0.1,
+    "risk_limits": {
+      "daily_loss_limit": 2000,
+      "consecutive_loss_limit": 5,
+      "drawdown_limit": 0.15
+    }
+  },
+  "session_stats": {
+    "total_predictions_analyzed": 50,
+    "investment_decisions_made": 1,
+    "successful_investments": 1,
+    "total_invested": 135,
+    "total_profit": 187.5151575064976,
+    "current_win_rate": 1.0,
+    "current_roi": 1.389001166714797,
+    "risk_events": []
+  },
+  "risk_management": {
+    "daily_start_balance": 10000,
+    "current_balance": 10187.515157506497,
+    "peak_balance": 10187.515157506497,
+    "consecutive_losses": 0,
+    "risk_level": "NORMAL",
+    "emergency_stop": false
+  },
+  "timestamp": "2025-08-23T13:18:10.950615",
+  "evaluation": {
+    "profitability": "PROFITABLE",
+    "win_rate_target": true,
+    "roi_target": true,
+    "risk_management": true
+  }
+}

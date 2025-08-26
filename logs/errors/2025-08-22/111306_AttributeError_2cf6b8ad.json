@@ -1,0 +1,44 @@
+{
+  "error_id": "2cf6b8ad-fc8a-424a-9efb-768daef30ccb",
+  "timestamp": "2025-08-22T02:13:06.903337+00:00",
+  "error_type": "AttributeError",
+  "error_message": "'MetricsCollector' object has no attribute 'record_performance'",
+  "traceback": [
+    "Traceback (most recent call last):\n",
+    "  File \"C:\\Users\\neoen\\OneDrive\\gemini\\kyotei\\openapi_app.py\", line 478, in index\n    data = fetcher.get_today_races()\n           ^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+    "  File \"C:\\Users\\neoen\\OneDrive\\gemini\\kyotei\\monitoring.py\", line 354, in decorated_function\n    current_app.metrics_collector.record_performance(\n    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+    "AttributeError: 'MetricsCollector' object has no attribute 'record_performance'\n"
+  ],
+  "occurrence_count": 1,
+  "context": {
+    "endpoint": "index"
+  },
+  "request": {
+    "method": "GET",
+    "url": "http://localhost:5000/",
+    "path": "/",
+    "remote_addr": "127.0.0.1",
+    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36",
+    "request_id": "b564bcc3-5119-4d8f-b901-2699d6c6f160",
+    "headers": {
+      "Host": "localhost:5000",
+      "Connection": "keep-alive",
+      "Cache-Control": "max-age=0",
+      "Sec-Ch-Ua": "\"Not;A=Brand\";v=\"99\", \"Google Chrome\";v=\"139\", \"Chromium\";v=\"139\"",
+      "Sec-Ch-Ua-Mobile": "?0",
+      "Sec-Ch-Ua-Platform": "\"Windows\"",
+      "Dnt": "1",
+      "Upgrade-Insecure-Requests": "1",
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36",
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+      "Sec-Fetch-Site": "none",
+      "Sec-Fetch-Mode": "navigate",
+      "Sec-Fetch-User": "?1",
+      "Sec-Fetch-Dest": "document",
+      "Accept-Encoding": "gzip, deflate, br, zstd",
+      "Accept-Language": "ja-JP,ja;q=0.9,en-US;q=0.8,en;q=0.7",
+      "Cookie": "session=eyJjc3JmX3Rva2VuIjoiNjQxZDIwZmZmOGY1MmQzZWJlNzE5NDlkMDg2NzVkMjkifQ.aKfQxA.5YKD4sCrVHw8D0sgprskn2xD6do"
+    },
+    "args": {}
+  }
+}

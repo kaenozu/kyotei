@@ -1,0 +1,35 @@
+{
+  "error_id": "88540364-d576-4ea6-929d-2ec6a305e64c",
+  "timestamp": "2025-08-22T06:55:21.105912+00:00",
+  "error_type": "KeyError",
+  "error_message": "'racers'",
+  "traceback": [
+    "Traceback (most recent call last):\n",
+    "  File \"C:\\Users\\neoen\\OneDrive\\gemini\\kyotei\\ensemble_predictor.py\", line 86, in calculate_ensemble_prediction\n    raise Exception(\"全モデルで予想失敗\")\n",
+    "Exception: 全モデルで予想失敗\n",
+    "\nDuring handling of the above exception, another exception occurred:\n\n",
+    "Traceback (most recent call last):\n",
+    "  File \"C:\\Users\\neoen\\OneDrive\\gemini\\kyotei\\openapi_app.py\", line 434, in calculate_prediction\n    ensemble_result = ensemble_predictor.calculate_ensemble_prediction(race_data)\n                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+    "  File \"C:\\Users\\neoen\\OneDrive\\gemini\\kyotei\\ensemble_predictor.py\", line 122, in calculate_ensemble_prediction\n    return self._statistical_prediction(race_data)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+    "  File \"C:\\Users\\neoen\\OneDrive\\gemini\\kyotei\\ensemble_predictor.py\", line 264, in _statistical_prediction\n    for racer in race_data['racers']:\n                 ~~~~~~~~~^^^^^^^^^^\n",
+    "KeyError: 'racers'\n"
+  ],
+  "occurrence_count": 2,
+  "context": {
+    "function": "calculate_prediction"
+  },
+  "request": {
+    "method": "GET",
+    "url": "http://127.0.0.1:5000/predict/02_11",
+    "path": "/predict/02_11",
+    "remote_addr": "127.0.0.1",
+    "user_agent": "curl/8.14.1",
+    "request_id": "5680fd9b-57ec-4a3f-be2c-fba7dc38328e",
+    "headers": {
+      "Host": "127.0.0.1:5000",
+      "User-Agent": "curl/8.14.1",
+      "Accept": "*/*"
+    },
+    "args": {}
+  }
+}

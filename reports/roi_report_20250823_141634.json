@@ -1,0 +1,27 @@
+{
+  "report_period": "2025-08-16 to 2025-08-23",
+  "performance_summary": {
+    "average_roi": 1.398842798793425,
+    "average_win_rate": 0.6329113924050633,
+    "average_sharpe_ratio": 0.5230103332001867,
+    "maximum_drawdown": 0.9975530426763187,
+    "total_investment": 228379.7896890433,
+    "total_return": 319467.4241964751,
+    "net_profit": 91087.63450743182
+  },
+  "target_achievement": {
+    "roi_achievement_rate": 0.9991734277095894,
+    "target_roi": 1.4,
+    "actual_roi": 1.398842798793425,
+    "performance_vs_target": -0.08265722904106099
+  },
+  "strategy_performance": {
+    "current_strategy": "balanced",
+    "strategy_effectiveness": 0.9991734277095894,
+    "market_adaptation": 0.75
+  },
+  "roi_grade": "C (Needs Improvement)",
+  "recommendations": [
+    "目標にほぼ到達 - 微調整で改善可能"
+  ]
+}

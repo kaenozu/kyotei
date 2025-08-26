@@ -28,9 +28,23 @@ class AdvancedMLPredictor:
     """機械学習による高度な競艇予想クラス"""
     
     def __init__(self):
-        self.db_path = 'cache/accuracy_tracker.db'
-        self.model_cache_path = 'cache/ml_models.pkl'
-        self.scaler_cache_path = 'cache/ml_scaler.pkl'
+        # パス設定（絶対パス使用で確実にアクセス）
+        # ファイルの場所からプロジェクトルートを特定
+        project_root = os.path.abspath(os.path.dirname(__file__))
+        
+        # cacheディレクトリのパス（絶対パス）
+        cache_dir = os.path.join(project_root, 'scripts', 'cache')
+        db_dir = os.path.join(project_root, 'cache')
+        
+        # scriptsディレクトリが存在しない場合は同階層のcacheを使用
+        if not os.path.exists(cache_dir):
+            cache_dir = os.path.join(project_root, 'cache')
+        if not os.path.exists(db_dir):
+            db_dir = os.path.join(project_root, 'cache')
+        
+        self.db_path = os.path.join(db_dir, 'accuracy_tracker.db')
+        self.model_cache_path = os.path.join(cache_dir, 'ml_models.pkl')
+        self.scaler_cache_path = os.path.join(cache_dir, 'ml_scaler.pkl')
         
         # アンサンブルモデル
         self.models = {

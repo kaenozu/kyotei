@@ -43,6 +43,7 @@ class AccuracyTracker:
                         race_number INTEGER NOT NULL,
                         predicted_win INTEGER,
                         predicted_place TEXT,
+                        predicted_trifecta TEXT,
                         confidence REAL,
                         prediction_data TEXT,
                         timestamp TEXT NOT NULL,
@@ -60,6 +61,7 @@ class AccuracyTracker:
                         race_number INTEGER NOT NULL,
                         winning_boat INTEGER,
                         place_results TEXT,
+                        trifecta_result TEXT,
                         result_data TEXT,
                         timestamp TEXT NOT NULL,
                         UNIQUE(race_date, venue_id, race_number)
@@ -74,6 +76,7 @@ class AccuracyTracker:
                         result_id INTEGER,
                         is_win_hit BOOLEAN,
                         is_place_hit BOOLEAN,
+                        is_trifecta_hit BOOLEAN,
                         hit_status TEXT,
                         timestamp TEXT NOT NULL,
                         FOREIGN KEY(prediction_id) REFERENCES predictions(id),
@@ -198,13 +201,16 @@ class AccuracyTracker:
                     date_condition = "rd.race_date BETWEEN ? AND ?"
                     date_params = (start_date.strftime('%Y-%m-%d'), target_date)
                 
-                # 基本統計 - race_detailsテーブルから取得（単勝・複勝対応）
+                # 基本統計 - race_detailsテーブルから取得（単勝・複勝・三連単対応）
                 cursor.execute(f'''
                     SELECT COUNT(*) as total_predictions,
                            COUNT(CASE WHEN JSON_EXTRACT(rd.prediction_data, '$.recommended_win') = rr.winning_boat THEN 1 END) as win_hits,
                            COUNT(CASE WHEN JSON_EXTRACT(rd.prediction_data, '$.recommended_win') = rr.winning_boat 
                                       OR JSON_EXTRACT(rd.prediction_data, '$.recommended_win') = JSON_EXTRACT(rr.place_results, '$[1]')
-                                 THEN 1 END) as place_hits
+                                 THEN 1 END) as place_hits,
+                           COUNT(CASE WHEN rr.trifecta_result IS NOT NULL 
+                                      AND JSON_EXTRACT(rd.prediction_data, '$.recommended_trifecta') = rr.trifecta_result 
+                                 THEN 1 END) as trifecta_hits
                     FROM race_details rd
                     LEFT JOIN race_results rr ON rd.venue_id = rr.venue_id AND rd.race_number = rr.race_number AND rd.race_date = rr.race_date
                     WHERE {date_condition} AND rr.winning_boat IS NOT NULL
@@ -214,38 +220,52 @@ class AccuracyTracker:
                 total_predictions = stats[0] if stats else 0
                 win_hits = stats[1] if stats else 0
                 place_hits = stats[2] if stats else 0
+                trifecta_hits = stats[3] if stats else 0
                 
                 win_accuracy = (win_hits / total_predictions * 100) if total_predictions > 0 else 0
                 place_accuracy = (place_hits / total_predictions * 100) if total_predictions > 0 else 0
-                
-                # 三連単は現在実装されていないため0に設定
-                trifecta_hits = 0
-                trifecta_accuracy = 0.0
+                trifecta_accuracy = (trifecta_hits / total_predictions * 100) if total_predictions > 0 else 0
                 
                 # レース別詳細（race_detailsテーブルから取得してデータソースを統一）
-                # 発走時間の昇順でソート（完全なタイムスタンプでソート）
+                # まずデータを取得してから発走時間でソート
                 cursor.execute(f'''
                     SELECT rd.venue_id, rd.venue_name, rd.race_number, rd.prediction_data,
-                           rr.winning_boat, rr.place_results, rd.race_date, rd.race_data
+                           rr.winning_boat, rr.place_results, rr.trifecta_result, rd.race_date, rd.race_data
                     FROM race_details rd
                     LEFT JOIN race_results rr ON rd.venue_id = rr.venue_id AND rd.race_number = rr.race_number AND rd.race_date = rr.race_date
                     WHERE {date_condition}
-                    ORDER BY CASE 
-                                WHEN JSON_EXTRACT(rd.race_data, '$.race_closed_at') IS NOT NULL 
-                                THEN JSON_EXTRACT(rd.race_data, '$.race_closed_at')
-                                ELSE '9999-12-31 23:59:59' 
-                             END ASC
                 ''', date_params)
                 
                 races = []
                 for row in cursor.fetchall():
-                    venue_id, venue_name, race_number, prediction_data_json, winning_boat, place_results_json, race_date, race_data_json = row
+                    venue_id, venue_name, race_number, prediction_data_json, winning_boat, place_results_json, trifecta_result, race_date, race_data_json = row
                     
                     # prediction_dataからJSONを解析
                     prediction_data = json.loads(prediction_data_json) if prediction_data_json else {}
                     predicted_win = prediction_data.get('recommended_win')
                     predicted_place = prediction_data.get('recommended_place', [])
-                    confidence = prediction_data.get('confidence', 0.5)
+                    predicted_trifecta = prediction_data.get('recommended_trifecta')
+                    
+                    # 統一信頼度システムを使用
+                    confidence = 0.5  # デフォルト値
+                    try:
+                        # 統一信頼度システムを遅延インポート
+                        import sys
+                        import os
+                        sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+                        from confidence_unifier import confidence_unifier
+                        
+                        # レースデータを解析
+                        race_data = json.loads(race_data_json) if race_data_json else None
+                        
+                        # 統一信頼度を取得
+                        unified_confidence = confidence_unifier.get_unified_confidence(
+                            venue_id, race_number, race_data
+                        )
+                        confidence = unified_confidence
+                    except Exception as e:
+                        # フォールバック: 古い予想データから取得
+                        confidence = prediction_data.get('confidence', 0.5)
                     
                     # race_dataから発走時間を取得（race_closed_atから時刻部分のみを抽出）
                     start_time = '未定'
@@ -267,6 +287,7 @@ class AccuracyTracker:
                             start_time = '未定'
                     
                     is_hit = (predicted_win == winning_boat) if (predicted_win is not None and winning_boat is not None) else None
+                    is_trifecta_hit = (predicted_trifecta == trifecta_result) if (predicted_trifecta is not None and trifecta_result is not None) else None
                     
                     # actual_resultフィールドを構築
                     actual_result = None
@@ -274,7 +295,8 @@ class AccuracyTracker:
                         place_results = json.loads(place_results_json) if place_results_json else []
                         actual_result = {
                             'win': winning_boat,
-                            'place': place_results[:2] if len(place_results) >= 2 else []
+                            'place': place_results[:2] if len(place_results) >= 2 else [],
+                            'trifecta': trifecta_result
                         }
                     
                     # hit_statusフィールドを構築（テンプレート用）
@@ -284,19 +306,44 @@ class AccuracyTracker:
                     elif is_hit is False:
                         hit_status = 'miss'
                     
+                    # ソート用のタイムスタンプを作成（race_dataから取得）
+                    sort_timestamp = '9999-12-31 23:59:59'  # デフォルト値
+                    if race_data_json:
+                        try:
+                            race_data = json.loads(race_data_json)
+                            race_closed_at = race_data.get('race_closed_at')
+                            if race_closed_at:
+                                sort_timestamp = race_closed_at
+                        except (json.JSONDecodeError, TypeError):
+                            pass
+                    
                     races.append({
                         'venue_id': venue_id,
                         'venue_name': venue_name,
                         'race_number': race_number,
                         'predicted_win': predicted_win,
+                        'predicted_trifecta': predicted_trifecta,
                         'winning_boat': winning_boat,
                         'actual_result': actual_result,
                         'is_hit': is_hit,
+                        'is_trifecta_hit': is_trifecta_hit,
                         'hit_status': hit_status,
                         'confidence': confidence or 0.5,
                         'date': race_date,
-                        'start_time': start_time
+                        'start_time': start_time,
+                        'sort_timestamp': sort_timestamp
                     })
+                
+                # 発走時間でソート（昇順）
+                races.sort(key=lambda x: x['sort_timestamp'])
+                
+                # 存在するレースのみフィルタリング
+                valid_races = self._filter_existing_races(races, target_date)
+                logger.info(f"存在チェック: {len(races)}件から{len(valid_races)}件にフィルタ")
+                
+                # sort_timestampフィールドを除去（表示用ではないため）
+                for race in valid_races:
+                    race.pop('sort_timestamp', None)
                 
                 return {
                     'summary': {
@@ -308,7 +355,7 @@ class AccuracyTracker:
                         'trifecta_hits': trifecta_hits,
                         'trifecta_accuracy': round(trifecta_accuracy, 1)
                     },
-                    'races': races,
+                    'races': valid_races,
                     'venues': self.venue_mapping
                 }
         except Exception as e:
@@ -326,3 +373,46 @@ class AccuracyTracker:
                 'races': [],
                 'venues': self.venue_mapping
             }
+    
+    def _filter_existing_races(self, races: List[Dict], target_date: str) -> List[Dict]:
+        """存在するレースのみフィルタリング"""
+        try:
+            # 現在のAPIデータから有効なレース一覧を取得
+            import requests
+            import json
+            from datetime import datetime
+            
+            # 今日のレースのみチェック
+            if target_date == datetime.now().strftime('%Y-%m-%d'):
+                try:
+                    response = requests.get('https://boatraceopenapi.github.io/programs/v2/today.json', timeout=5)
+                    if response.status_code == 200:
+                        api_data = response.json()
+                        valid_race_keys = set()
+                        
+                        for program in api_data.get('programs', []):
+                            venue_id = program.get('race_stadium_number')
+                            race_number = program.get('race_number')
+                            if venue_id and race_number:
+                                valid_race_keys.add(f"{venue_id}_{race_number}")
+                        
+                        # 有効なレースのみフィルタ
+                        filtered_races = []
+                        for race in races:
+                            race_key = f"{race['venue_id']}_{race['race_number']}"
+                            if race_key in valid_race_keys:
+                                filtered_races.append(race)
+                            else:
+                                logger.debug(f"非存在レースを除外: {race['venue_name']} {race['race_number']}R")
+                        
+                        return filtered_races
+                        
+                except Exception as e:
+                    logger.warning(f"APIチェックエラー: {e}")
+            
+            # APIチェックが失敗した場合、すべてを返す
+            return races
+            
+        except Exception as e:
+            logger.error(f"レースフィルタリングエラー: {e}")
+            return races

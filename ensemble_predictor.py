@@ -79,8 +79,14 @@ class EnsemblePredictor:
         available_systems = list(self.predictors.keys())
         total_weight = sum(base_weights[sys] for sys in available_systems)
         
-        for system in available_systems:
-            self.weights[system] = base_weights[system] / total_weight
+        # ゼロ除算を防ぐ
+        if total_weight > 0:
+            for system in available_systems:
+                self.weights[system] = base_weights[system] / total_weight
+        else:
+            # フォールバック: 均等配分
+            for system in available_systems:
+                self.weights[system] = 1.0 / len(available_systems) if available_systems else 1.0
         
         logger.info(f"アンサンブル重み: {self.weights}")
     
@@ -307,8 +313,8 @@ class EnsemblePredictor:
             max_count = max(win_counts.values())
             total_count = len(recommended_wins)
             
-            # 一致率に基づくボーナス
-            agreement_ratio = max_count / total_count
+            # 一致率に基づくボーナス（ゼロ除算を防ぐ）
+            agreement_ratio = max_count / total_count if total_count > 0 else 0.0
             if agreement_ratio >= 0.75:
                 return 0.1  # 75%以上一致
             elif agreement_ratio >= 0.5:
