@@ -33,7 +33,8 @@ class AdminRoutes:
         """管理関連ルートを登録"""
         self.app.add_url_rule('/accuracy', 'accuracy_report', self.accuracy_report)
         self.app.add_url_rule('/accuracy/<date>', 'accuracy_report_date', self.accuracy_report)
-        self.app.add_url_rule('/api/update-results', 'api_update_results', self.api_update_results)
+        self.app.add_url_rule('/api/update-results', 'api_update_results', self.api_update_results, methods=['POST', 'GET'])
+        self.app.add_url_rule('/api/clear-test-results', 'api_clear_test_results', self.api_clear_test_results, methods=['POST', 'GET'])
     
     def accuracy_report(self, date=None):
         """的中率レポート（日付別）"""
@@ -46,75 +47,8 @@ class AdminRoutes:
             # 指定日の的中率を計算
             accuracy_data = tracker.calculate_accuracy(date)
             
-            # 指定日のレース一覧を取得
-            race_list = []
-            with sqlite3.connect(tracker.db_path) as conn:
-                cursor = conn.cursor()
-                cursor.execute("""
-                    SELECT rd.venue_id, rd.venue_name, rd.race_number, rd.prediction_data,
-                           rr.winning_boat, rr.place_results, rr.trifecta_result
-                    FROM race_details rd
-                    LEFT JOIN race_results rr ON rd.venue_id = rr.venue_id 
-                        AND rd.race_number = rr.race_number 
-                        AND rd.race_date = rr.race_date
-                    WHERE rd.race_date = ?
-                    ORDER BY rd.venue_id, rd.race_number
-                """, (date,))
-                
-                for row in cursor.fetchall():
-                    venue_id, venue_name, race_number, prediction_data_json, winning_boat, place_results_json, trifecta_result = row
-                    
-                    # 予想データ解析
-                    prediction_data = {}
-                    if prediction_data_json:
-                        try:
-                            prediction_data = json.loads(prediction_data_json)
-                        except:
-                            pass
-                    
-                    # 結果データ解析
-                    place_results = []
-                    if place_results_json:
-                        try:
-                            place_results = json.loads(place_results_json)
-                        except:
-                            pass
-                    
-                    # 的中判定
-                    predicted_win = prediction_data.get('recommended_win') or prediction_data.get('predicted_win', 0)
-                    predicted_place = prediction_data.get('recommended_place') or prediction_data.get('predicted_place', [])
-                    predicted_trifecta = prediction_data.get('recommended_trifecta', '')
-                    
-                    is_win_hit = (winning_boat == predicted_win) if winning_boat else False
-                    is_place_hit = False
-                    is_trifecta_hit = False
-                    
-                    if place_results and len(place_results) >= 2:
-                        if isinstance(predicted_place, list) and len(predicted_place) >= 2:
-                            is_place_hit = (predicted_place[0] in place_results[:2] and 
-                                          predicted_place[1] in place_results[:2])
-                    
-                    if trifecta_result and predicted_trifecta:
-                        is_trifecta_hit = (predicted_trifecta == trifecta_result)
-                    
-                    race_info = {
-                        'venue_id': venue_id,
-                        'venue_name': venue_name or VENUE_MAPPING.get(venue_id, '不明'),
-                        'race_number': race_number,
-                        'race_id': f"{venue_id:02d}_{race_number:02d}_{date}",
-                        'predicted_win': predicted_win,
-                        'predicted_place': predicted_place,
-                        'predicted_trifecta': predicted_trifecta,
-                        'actual_win': winning_boat,
-                        'actual_place': place_results,
-                        'actual_trifecta': trifecta_result,
-                        'is_win_hit': is_win_hit,
-                        'is_place_hit': is_place_hit,
-                        'is_trifecta_hit': is_trifecta_hit,
-                        'confidence': prediction_data.get('confidence', 0),
-                        'has_result': winning_boat is not None
-                    }
-                    race_list.append(race_info)
+            # AccuracyTrackerの結果を直接使用（重複処理を避ける）
+            race_list = accuracy_data.get('races', [])
             
             # 前日・翌日のナビゲーション
             current_date = datetime.strptime(date, '%Y-%m-%d')
@@ -127,33 +61,46 @@ class AdminRoutes:
                                  prev_date=prev_date,
                                  next_date=next_date,
                                  is_today=(date == today),
-                                 accuracy_data=accuracy_data,
-                                 race_list=race_list,
-                                 total_races=len(race_list))
+                                 accuracy_data={
+                                     'summary': accuracy_data.get('summary'),
+                                     'races': race_list,
+                                     'venues': VENUE_MAPPING
+                                 },
+                                 summary=accuracy_data.get('summary'),
+                                 races=race_list,
+                                 total_races=len(race_list),
+                                 venues=VENUE_MAPPING)
         
         except Exception as e:
             logger.error(f"的中率レポートエラー: {e}")
             return render_template('accuracy_report.html',
                                  error=f"レポート生成エラー: {str(e)}",
-                                 date=date or datetime.now().strftime('%Y-%m-%d'))
+                                 date=date or datetime.now().strftime('%Y-%m-%d'),
+                                 accuracy_data={
+                                     'summary': {},
+                                     'races': [],
+                                     'venues': VENUE_MAPPING
+                                 },
+                                 venues=VENUE_MAPPING)
     
     def api_update_results(self):
         """結果データ更新API"""
         try:
             tracker = self.AccuracyTracker()
             
-            # バックグラウンドで結果更新を実行
-            async def update_results():
-                try:
-                    self._auto_update_results(tracker)
-                    return {'success': True, 'message': '結果更新を開始しました'}
-                except Exception as e:
-                    logger.error(f"結果更新エラー: {e}")
-                    return {'success': False, 'error': str(e)}
-            
-            # 非同期実行
-            result = asyncio.run(update_results())
-            return jsonify(result)
+            # 直接実行（非同期処理を削除）
+            try:
+                updated_count = self._auto_update_results(tracker)
+                return jsonify({
+                    'success': True, 
+                    'message': f'結果更新完了: {updated_count}件更新されました'
+                })
+            except Exception as e:
+                logger.error(f"結果更新エラー: {e}")
+                return jsonify({
+                    'success': False, 
+                    'error': str(e)
+                })
             
         except Exception as e:
             logger.error(f"結果更新APIエラー: {e}")
@@ -214,7 +161,48 @@ class AdminRoutes:
                 
                 if updated_count > 0:
                     logger.info(f"実際の結果を自動更新: {updated_count}件")
+                    return updated_count
+                else:
+                    logger.info("更新対象のレース結果がありませんでした")
+                    return 0
+            else:
+                logger.warning(f"結果データAPI失敗: HTTP {response.status_code}")
+                return 0
             
         except Exception as e:
             logger.warning(f"自動結果更新失敗: {e}")
             raise e
+    
+    def api_clear_test_results(self):
+        """不適切なテスト結果データを削除するAPI"""
+        try:
+            tracker = self.AccuracyTracker()
+            
+            today = datetime.now().strftime('%Y-%m-%d')
+            
+            # テストデータまたは全ての結果データを削除
+            with sqlite3.connect(tracker.db_path) as conn:
+                cursor = conn.cursor()
+                
+                # race_results テーブルから今日のデータを削除
+                cursor.execute('''
+                    DELETE FROM race_results 
+                    WHERE race_date = ?
+                ''', (today,))
+                
+                deleted_count = cursor.rowcount
+                conn.commit()
+                
+            logger.info(f"不適切な結果データを削除: {deleted_count}件")
+            
+            return jsonify({
+                'success': True, 
+                'message': f'不適切な結果データを削除しました: {deleted_count}件'
+            })
+            
+        except Exception as e:
+            logger.error(f"結果データ削除エラー: {e}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            })
