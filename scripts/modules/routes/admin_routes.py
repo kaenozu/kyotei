@@ -34,6 +34,7 @@ class AdminRoutes:
         self.app.add_url_rule('/accuracy', 'accuracy_report', self.accuracy_report)
         self.app.add_url_rule('/accuracy/<date>', 'accuracy_report_date', self.accuracy_report)
         self.app.add_url_rule('/api/update-results', 'api_update_results', self.api_update_results, methods=['POST', 'GET'])
+        self.app.add_url_rule('/api/update-results/<date>', 'api_update_results_date', self.api_update_results_for_date, methods=['POST', 'GET'])
         self.app.add_url_rule('/api/clear-test-results', 'api_clear_test_results', self.api_clear_test_results, methods=['POST', 'GET'])
     
     def accuracy_report(self, date=None):
@@ -49,15 +50,17 @@ class AdminRoutes:
             
             # AccuracyTrackerの結果を直接使用（重複処理を避ける）
             race_list = accuracy_data.get('races', [])
+            logger.info(f"デバッグ: race_list長さ={len(race_list)}, 最初のレース={race_list[0] if race_list else 'なし'}")
             
-            # 前日・翌日のナビゲーション
+            # 完全なデータ（発走時間+予想+結果）が存在する前日・翌日を検索
             current_date = datetime.strptime(date, '%Y-%m-%d')
-            prev_date = (current_date - timedelta(days=1)).strftime('%Y-%m-%d')
-            next_date = (current_date + timedelta(days=1)).strftime('%Y-%m-%d')
+            prev_date = self._find_previous_data_date(current_date, tracker)
+            next_date = self._find_next_data_date(current_date, tracker)
             today = datetime.now().strftime('%Y-%m-%d')
             
             return render_template('accuracy_report.html',
                                  date=date,
+                                 current_date=date,
                                  prev_date=prev_date,
                                  next_date=next_date,
                                  is_today=(date == today),
@@ -73,9 +76,14 @@ class AdminRoutes:
         
         except Exception as e:
             logger.error(f"的中率レポートエラー: {e}")
+            error_date = date or datetime.now().strftime('%Y-%m-%d')
             return render_template('accuracy_report.html',
                                  error=f"レポート生成エラー: {str(e)}",
-                                 date=date or datetime.now().strftime('%Y-%m-%d'),
+                                 date=error_date,
+                                 current_date=error_date,
+                                 prev_date=None,
+                                 next_date=None,
+                                 is_today=False,
                                  accuracy_data={
                                      'summary': {},
                                      'races': [],
@@ -104,6 +112,34 @@ class AdminRoutes:
             
         except Exception as e:
             logger.error(f"結果更新APIエラー: {e}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            })
+    
+    def api_update_results_for_date(self, date):
+        """指定日の結果データ更新API"""
+        try:
+            tracker = self.AccuracyTracker()
+            
+            # 日付形式検証
+            try:
+                datetime.strptime(date, '%Y-%m-%d')
+            except ValueError:
+                return jsonify({
+                    'success': False,
+                    'error': '無効な日付形式です (YYYY-MM-DD)'
+                })
+            
+            # 指定日の結果を更新
+            updated_count = self._auto_update_results_for_date(tracker, date)
+            return jsonify({
+                'success': True, 
+                'message': f'{date}の結果更新完了: {updated_count}件更新されました'
+            })
+            
+        except Exception as e:
+            logger.error(f"日付別結果更新APIエラー: {e}")
             return jsonify({
                 'success': False,
                 'error': str(e)
@@ -206,3 +242,74 @@ class AdminRoutes:
                 'success': False,
                 'error': str(e)
             })
+    
+    def _auto_update_results_for_date(self, tracker, date):
+        """指定日の結果を自動取得・更新"""
+        try:
+            logger.info(f"{date}の実際のレース結果を自動取得中...")
+            
+            # 指定日の結果を取得（BoatraceOpenAPIは今日のみ対応のため、別のAPIまたはデータソースを使用する必要がある）
+            # 現在はtodayの結果のみ利用可能なため、今日の日付の場合のみ更新
+            today = datetime.now().strftime('%Y-%m-%d')
+            if date != today:
+                logger.warning(f"{date}は今日ではないため、結果データの自動取得はスキップします")
+                return 0
+            
+            # 今日の場合は通常の更新処理を実行
+            return self._auto_update_results(tracker)
+            
+        except Exception as e:
+            logger.warning(f"{date}の自動結果更新失敗: {e}")
+            return 0
+    
+    def _find_previous_data_date(self, current_date, tracker):
+        """完全なデータ（発走時間+予想+結果）が存在する前の日付を検索"""
+        try:
+            import sqlite3
+            with sqlite3.connect('cache/accuracy_tracker.db') as conn:
+                cursor = conn.cursor()
+                # race_detailsとrace_resultsの両方にデータがある日付を検索
+                cursor.execute('''
+                    SELECT rd.race_date 
+                    FROM race_details rd
+                    INNER JOIN race_results rr ON rd.race_date = rr.race_date
+                    WHERE rd.race_date < ? 
+                      AND rd.prediction_data IS NOT NULL
+                      AND rr.winning_boat IS NOT NULL
+                    GROUP BY rd.race_date 
+                    HAVING COUNT(DISTINCT rd.race_number) >= 10 
+                       AND COUNT(DISTINCT rr.race_number) >= 5
+                    ORDER BY rd.race_date DESC 
+                    LIMIT 1
+                ''', (current_date.strftime('%Y-%m-%d'),))
+                
+                result = cursor.fetchone()
+                return result[0] if result else None
+        except:
+            return None
+    
+    def _find_next_data_date(self, current_date, tracker):
+        """完全なデータ（発走時間+予想+結果）が存在する次の日付を検索"""
+        try:
+            import sqlite3
+            with sqlite3.connect('cache/accuracy_tracker.db') as conn:
+                cursor = conn.cursor()
+                # race_detailsとrace_resultsの両方にデータがある日付を検索
+                cursor.execute('''
+                    SELECT rd.race_date 
+                    FROM race_details rd
+                    INNER JOIN race_results rr ON rd.race_date = rr.race_date
+                    WHERE rd.race_date > ? 
+                      AND rd.prediction_data IS NOT NULL
+                      AND rr.winning_boat IS NOT NULL
+                    GROUP BY rd.race_date 
+                    HAVING COUNT(DISTINCT rd.race_number) >= 10 
+                       AND COUNT(DISTINCT rr.race_number) >= 5
+                    ORDER BY rd.race_date ASC 
+                    LIMIT 1
+                ''', (current_date.strftime('%Y-%m-%d'),))
+                
+                result = cursor.fetchone()
+                return result[0] if result else None
+        except:
+            return None

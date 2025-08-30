@@ -197,17 +197,22 @@
             text-align: center;
         }
         
-        .result-hit {
+        .result-◯, .result-hit {
             background-color: var(--success-color);
             color: white;
         }
         
-        .result-miss {
+        .result-△ {
+            background-color: #28a745;
+            color: white;
+        }
+        
+        .result-×, .result-miss {
             background-color: var(--danger-color);
             color: white;
         }
         
-        .result-pending {
+        .result-待, .result-pending {
             background-color: var(--warning-color);
             color: #000;
         }
@@ -304,6 +309,30 @@
         .page-info {
             color: var(--text-color);
             font-size: 0.9em;
+        }
+        
+        .nav-button {
+            padding: 10px 15px;
+            text-decoration: none;
+            background: var(--header-color);
+            color: white;
+            border-radius: 5px;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            display: inline-block;
+        }
+        
+        .nav-button:hover {
+            background: var(--success-color);
+            transform: translateY(-1px);
+        }
+        
+        .nav-button.disabled {
+            background: #ccc;
+            color: #666;
+            cursor: not-allowed;
         }
         
         [data-theme="dark"] .filter-section {
@@ -485,6 +514,11 @@
         
         <!-- 日付ナビゲーション (上部) - データがなくても表示 -->
         <div class="pagination" id="pagination-top">
+            {% if prev_date %}
+                <a href="/accuracy/{{ prev_date }}" class="nav-button">« {{ prev_date }}</a>
+            {% else %}
+                <button disabled class="nav-button disabled">« 前日なし</button>
+            {% endif %}
             <button id="prev-btn-top" onclick="changePage(-1)">« 前の日</button>
             <button onclick="changePage(-7)">« 1週間前</button>
             <input type="date" id="date-picker" onchange="goToDate()" 
@@ -493,6 +527,11 @@
             <span class="page-info" id="page-info-top">{{ current_date_formatted or '' }}</span>
             <button onclick="changePage(7)">1週間後 »</button>
             <button id="next-btn-top" onclick="changePage(1)">次の日 »</button>
+            {% if next_date %}
+                <a href="/accuracy/{{ next_date }}" class="nav-button">{{ next_date }} »</a>
+            {% else %}
+                <button disabled class="nav-button disabled">翌日なし »</button>
+            {% endif %}
             <button onclick="goToToday()" style="background: var(--success-color); color: white;">今日</button>
         </div>
         
@@ -531,14 +570,20 @@
                 {% for race in races %}
                 <tr data-venue="{{ race.venue_id }}" 
                     data-result="{{ race.hit_status }}" 
-                    data-date="{{ race.date }}">
+                    data-date="{{ race.race_date }}">
                     <td>{{ race.venue_name }}</td>
                     <td>{{ race.race_number }}R</td>
                     <td>{{ race.start_time if race.start_time else '未定' }}</td>
                     <td>
                         <div class="prediction-vs-result">
-                            <strong>{{ race.predicted_win }}号艇</strong>
-                            {% if race.predicted_place %}
+                            <strong>
+                                {% if race.predicted_win and race.predicted_win not in ['None', 'null', '結果のみ'] %}
+                                    {{ race.predicted_win }}号艇
+                                {% else %}
+                                    <span style="color: #999;">予想なし</span>
+                                {% endif %}
+                            </strong>
+                            {% if race.predicted_place and race.predicted_place not in ['None', 'null', '結果のみ'] %}
                             <div style="font-size: 0.85em; color: #666; margin-top: 2px;">
                                 複勝: {{ race.predicted_place[:2]|join('-') }}号艇<br>
                                 {% if race.predicted_place|length >= 3 %}
@@ -549,14 +594,14 @@
                         </div>
                     </td>
                     <td>
-                        {% if race.actual_result %}
+                        {% if race.winning_boat and race.winning_boat not in ['None', 'null', 'undefined'] %}
                         <div class="prediction-vs-result">
-                            <strong>{{ race.actual_result.win }}号艇</strong>
-                            {% if race.actual_result.place %}
+                            <strong>{{ race.winning_boat }}号艇</strong>
+                            {% if race.place_results %}
                             <div style="font-size: 0.85em; color: #666; margin-top: 2px;">
-                                複勝: {{ race.actual_result.place[:2]|join('-') }}号艇<br>
-                                {% if race.actual_result.place|length >= 3 %}
-                                三連単: {{ race.actual_result.place[:3]|join('-') }}号艇
+                                複勝: {{ race.place_results[:2]|join('-') }}号艇<br>
+                                {% if race.place_results|length >= 3 %}
+                                三連単: {{ race.place_results[:3]|join('-') }}号艇
                                 {% endif %}
                             </div>
                             {% endif %}
@@ -569,8 +614,12 @@
                         <span class="result-badge result-{{ race.hit_status }}">
                             {% if race.hit_status == 'hit' %}
                             ✓ 的中
+                            {% elif race.hit_status == 'place_hit' %}
+                            ✓ 複勝的中
                             {% elif race.hit_status == 'miss' %}
                             ✗ 外れ
+                            {% elif race.hit_status == 'pending' %}
+                            ⏳ 結果待ち
                             {% else %}
                             ⏳ 待機
                             {% endif %}
@@ -578,6 +627,7 @@
                     </td>
                     <td>
                         <div style="display: flex; align-items: center; gap: 5px;">
+                            {% if race.confidence %}
                             <span>{{ '{:.1%}'.format(race.confidence) }}</span>
                             <div style="color: #ffc107;">
                                 {% set stars = ((race.confidence * 5) | round | int) %}
@@ -585,12 +635,16 @@
                                     {% if i < stars %}★{% else %}☆{% endif %}
                                 {% endfor %}
                             </div>
+                            {% else %}
+                            <span>-</span>
+                            <div style="color: #666;">☆☆☆☆☆</div>
+                            {% endif %}
                         </div>
                     </td>
                     <td style="text-align: center;">
-                        <a href="/predict/{{ '%02d'|format(race.venue_id) }}_{{ '%02d'|format(race.race_number) }}{% if race.date != today %}{{ '_' + race.date }}{% endif %}" 
+                        <a href="/predict/{{ '%02d'|format(race.venue_id) }}_{{ '%02d'|format(race.race_number) }}{% if race.race_date != today %}{{ '_' + race.race_date }}{% endif %}" 
                            class="detail-link" 
-                           title="{{ race.venue_name }} {{ race.race_number }}Rの詳細予想を見る（{{ race.date }}）">
+                           title="{{ race.venue_name }} {{ race.race_number }}Rの詳細予想を見る（{{ race.race_date }}）">
                             📊 詳細
                         </a>
                     </td>
@@ -608,11 +662,21 @@
         
         <!-- 日付ナビゲーション (下部) - データがなくても表示 -->
         <div class="pagination" id="pagination-bottom">
+            {% if prev_date %}
+                <a href="/accuracy/{{ prev_date }}" class="nav-button">« {{ prev_date }}</a>
+            {% else %}
+                <button disabled class="nav-button disabled">« 前日なし</button>
+            {% endif %}
             <button id="prev-btn-bottom" onclick="changePage(-1)">« 前の日</button>
             <button onclick="changePage(-7)">« 1週間前</button>
             <span class="page-info" id="page-info-bottom">{{ current_date_formatted or '' }}</span>
             <button onclick="changePage(7)">1週間後 »</button>
             <button id="next-btn-bottom" onclick="changePage(1)">次の日 »</button>
+            {% if next_date %}
+                <a href="/accuracy/{{ next_date }}" class="nav-button">{{ next_date }} »</a>
+            {% else %}
+                <button disabled class="nav-button disabled">翌日なし »</button>
+            {% endif %}
             <button onclick="goToToday()" style="background: var(--success-color); color: white;">今日</button>
         </div>
     </div>
@@ -1035,7 +1099,10 @@
         // ページ読み込み時にページング初期化
         document.addEventListener('DOMContentLoaded', function() {
             if (document.getElementById('race-table')) {
-                initializePagination();
+                // ページング機能を無効化し、全行を表示
+                const allRows = Array.from(document.querySelectorAll('#race-table tbody tr'));
+                allRows.forEach(row => row.style.display = '');
+                console.log(`全${allRows.length}行を表示しました`);
             }
             
             // 日付ピッカーの初期値をURLに合わせる
