@@ -348,10 +348,18 @@ class RealEnhancedPredictor:
         score = 0.0
         for factor, weight in weights.items():
             factor_score = racer_analysis.get(factor, 0.5)
+            # None値チェック
+            if factor_score is None:
+                factor_score = 0.5
+            elif not isinstance(factor_score, (int, float)):
+                factor_score = 0.5
             score += factor_score * weight
         
         # ベースストレングス（コース特性）を加味
         base_strength = racer_analysis.get('base_strength', 0.5)
+        if base_strength is None or not isinstance(base_strength, (int, float)):
+            base_strength = 0.5
+            
         score = (score * 0.8) + (base_strength * 0.2)
         
         return min(1.0, max(0.0, score))
@@ -366,17 +374,42 @@ class RealEnhancedPredictor:
         # 上位3艇を複勝予想
         recommended_place = [racer['number'] for racer in racers[:3]] if len(racers) >= 3 else [1, 2, 3]
         
-        # 信頼度計算（1着予想艇のスコア + 会場特性）
-        base_confidence = racers[0]['prediction_score'] if racers else 0.5
+        # 信頼度計算（改善版：複数要素から動的計算）
+        if racers:
+            # 1位艇と2位艇のスコア差（大きいほど信頼度高）
+            top_score = racers[0]['prediction_score']
+            second_score = racers[1]['prediction_score'] if len(racers) > 1 else 0.3
+            score_gap = top_score - second_score
+            
+            # コース勝率要素（1コースが圧倒的に有利なら信頼度高）
+            course_confidence = course_rates.get(racers[0]['course'], 0.5)
+            
+            # レーサーの基本能力（勝率が高いほど信頼度高）
+            racer_ability = racers[0].get('win_rate', 50) / 100.0 if racers[0].get('win_rate') else 0.5
+            
+            # 複合信頼度計算
+            base_confidence = (
+                score_gap * 0.4 +         # スコア差の影響40%
+                course_confidence * 0.3 +  # コース優位性30%
+                racer_ability * 0.3        # レーサー能力30%
+            )
+        else:
+            base_confidence = 0.5
         
-        # 会場による信頼度調整
+        # 会場による信頼度調整（拡張版）
         venue_adjustment = {
             1: 0.05,   # 桐生: やや高信頼
+            2: 0.08,   # 戸田: 高信頼（1コース強い）
             3: -0.10,  # 江戸川: 荒れやすいため低信頼
-            12: 0.02   # 住之江: やや高信頼
+            4: 0.03,   # 平和島: やや高信頼
+            11: -0.05, # びわこ: やや荒れやすい
+            12: 0.02,  # 住之江: やや高信頼
+            16: -0.08, # 児島: 荒れやすい
+            21: 0.06   # 芦屋: 高信頼
         }.get(venue_id, 0.0)
         
-        confidence = max(0.3, min(0.9, base_confidence + venue_adjustment))
+        # 最終信頼度（30%-90%の範囲）
+        confidence = max(0.30, min(0.90, base_confidence + venue_adjustment))
         
         # 各艇の勝率予想
         predictions = {}

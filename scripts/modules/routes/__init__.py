@@ -15,7 +15,9 @@ __all__ = ['RouteManager', 'CoreRoutes', 'PredictionRoutes', 'APIRoutes', 'Inves
 class RouteManager:
     """統合ルートマネージャー"""
     
-    def __init__(self, app, fetcher, accuracy_tracker_class, enhanced_predictor_class=None):
+    def __init__(self, app, fetcher, accuracy_tracker_class, 
+                 core_routes_class, prediction_routes_class, api_routes_class, 
+                 investment_routes_class, admin_routes_class, enhanced_predictor_class=None):
         """
         全ルートハンドラーを初期化・統合
         
@@ -23,19 +25,27 @@ class RouteManager:
             app: Flaskアプリケーション
             fetcher: APIフェッチャー
             accuracy_tracker_class: 的中率追跡クラス
+            core_routes_class: CoreRoutesクラス
+            prediction_routes_class: PredictionRoutesクラス
+            api_routes_class: APIRoutesクラス
+            investment_routes_class: InvestmentRoutesクラス
+            admin_routes_class: AdminRoutesクラス
             enhanced_predictor_class: 強化予想クラス（オプション）
         """
+        if app is None: # app が None の場合に TypeError を発生させる
+            raise TypeError("Flask application 'app' cannot be None.")
+
         self.app = app
         self.fetcher = fetcher
         self.AccuracyTracker = accuracy_tracker_class
         self.EnhancedPredictor = enhanced_predictor_class
         
         # 各ルートハンドラーを初期化
-        self.core_routes = CoreRoutes(app, fetcher)
-        self.prediction_routes = PredictionRoutes(app, fetcher, accuracy_tracker_class, enhanced_predictor_class)
-        self.api_routes = APIRoutes(app, fetcher, accuracy_tracker_class)
-        self.investment_routes = InvestmentRoutes(app, fetcher, accuracy_tracker_class)
-        self.admin_routes = AdminRoutes(app, fetcher, accuracy_tracker_class)
+        self.core_routes = core_routes_class(app, fetcher)
+        self.prediction_routes = prediction_routes_class(app, fetcher, accuracy_tracker_class, enhanced_predictor_class)
+        self.api_routes = api_routes_class(app, fetcher, accuracy_tracker_class)
+        self.investment_routes = investment_routes_class(app, fetcher, accuracy_tracker_class)
+        self.admin_routes = admin_routes_class(app, fetcher, accuracy_tracker_class)
         
         # 統合完了ログ
         import logging

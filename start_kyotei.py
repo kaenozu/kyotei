@@ -5,7 +5,7 @@
 """
 
 import sys
-from accuracy_tracker import KyoteiSystem
+from core.accuracy_tracker import KyoteiSystem
 
 def main():
     """シンプル起動"""

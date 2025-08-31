@@ -283,9 +283,16 @@
         
         <!-- ナビゲーション -->
         <div class="dashboard-card">
-            <button class="btn btn-primary" onclick="refreshDashboard()">🔄 更新</button>
-            <button class="btn btn-success" onclick="window.location.href='/'">🏠 メイン画面</button>
-            <button class="btn btn-warning" onclick="window.location.href='/accuracy'">📊 的中率レポート</button>
+            <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 10px;">
+                <div style="display: flex; flex-wrap: wrap; gap: 5px;">
+                    <button class="btn btn-primary" onclick="refreshDashboard()">🔄 更新</button>
+                    <button class="btn btn-success" onclick="window.location.href='/'">🏠 メイン画面</button>
+                    <button class="btn btn-warning" onclick="window.location.href='/accuracy'">📊 的中率レポート</button>
+                </div>
+                <div style="min-width: 150px; text-align: right; padding: 5px; background-color: rgba(0,0,0,0.1); border-radius: 5px;">
+                    <span id="last-update-time" style="color: #333; font-size: 12px; font-weight: bold;">最終更新: 初期化中...</span>
+                </div>
+            </div>
         </div>
     </div>
     
@@ -404,8 +411,8 @@
                 
                 // 高信頼度レースアラートの場合はリンクを追加
                 if (alert.type === 'high_confidence' && alert.race_key) {
-                    const raceId = alert.race_key.replace('_', '_').padStart(5, '0');
-                    const formattedRaceId = `${raceId.substring(0, 2)}_${raceId.substring(2)}`;
+                    // race_keyをそのまま使用（例：1_7 → 1_7）
+                    const formattedRaceId = alert.race_key;
                     
                     return `
                         <div style="margin: 10px 0; padding: 0; border-radius: 5px; 
@@ -470,8 +477,15 @@
                 
                 // 高信頼度レースを抽出（信頼度55%以上に調整）
                 const highConfidenceRaces = data.races
-                    .filter(race => race.confidence >= 55 && !race.is_finished)
-                    .sort((a, b) => b.confidence - a.confidence)
+                    .filter(race => {
+                        const confidence = race.prediction && race.prediction.confidence ? race.prediction.confidence : 0;
+                        return confidence >= 0.55 && !race.is_finished;
+                    })
+                    .sort((a, b) => {
+                        const aConf = a.prediction && a.prediction.confidence ? a.prediction.confidence : 0;
+                        const bConf = b.prediction && b.prediction.confidence ? b.prediction.confidence : 0;
+                        return bConf - aConf;
+                    })
                     .slice(0, 5); // 上位5件
                 
                 if (highConfidenceRaces.length === 0) {
@@ -482,6 +496,8 @@
                 container.innerHTML = highConfidenceRaces.map(race => {
                     const venueName = venueNames[race.venue_id] || `会場${race.venue_id}`;
                     const raceId = `${race.venue_id.toString().padStart(2, '0')}_${race.race_number.toString().padStart(2, '0')}`;
+                    const confidence = race.prediction && race.prediction.confidence ? race.prediction.confidence : 0;
+                    const confidencePercent = Math.round(confidence * 100);
                     
                     return `
                         <div class="race-card high-confidence-race" style="cursor: pointer; position: relative;">
@@ -491,8 +507,8 @@
                                         <strong>${venueName} ${race.race_number}R</strong>
                                         <div class="confidence-meter" style="width: 150px; margin: 8px 0;">
                                             <div class="confidence-fill confidence-very-high" 
-                                                 style="width: ${race.confidence}%">
-                                                ${race.confidence.toFixed(1)}%
+                                                 style="width: ${confidencePercent}%">
+                                                ${confidencePercent}%
                                             </div>
                                         </div>
                                         <small style="color: #666;">🎯 ${race.race_title}</small>
@@ -642,9 +658,28 @@
             `;
         }
         
-        // ダッシュボード更新
+        // ダッシュボード更新（スムーズな部分更新）
         async function refreshDashboard() {
-            await initDashboard();
+            console.log('ダッシュボード自動更新開始...');
+            try {
+                // ローディング画面を表示せずに静かに更新
+                await Promise.all([
+                    loadInvestmentData(),
+                    loadAlerts(),
+                    loadHighConfidenceRaces()
+                ]);
+                console.log('ダッシュボード更新完了');
+                
+                // 更新時刻表示
+                const updateTimeElement = document.getElementById('last-update-time');
+                if (updateTimeElement) {
+                    const now = new Date();
+                    const timeStr = now.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+                    updateTimeElement.textContent = `最終更新: ${timeStr}`;
+                }
+            } catch (error) {
+                console.error('ダッシュボード更新エラー:', error);
+            }
         }
         
         // 読み込み表示
@@ -656,11 +691,24 @@
             // 実装省略
         }
         
-        // 自動更新（5分間隔）
-        setInterval(refreshDashboard, 5 * 60 * 1000);
+        // 自動更新（3分間隔、スムーズ更新）
+        setInterval(refreshDashboard, 3 * 60 * 1000);
+        
+        // 初期化時に最終更新時刻を設定
+        function setInitialUpdateTime() {
+            const updateTimeElement = document.getElementById('last-update-time');
+            if (updateTimeElement) {
+                const now = new Date();
+                const timeStr = now.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+                updateTimeElement.textContent = `最終更新: ${timeStr}`;
+            }
+        }
         
         // 初期化
-        document.addEventListener('DOMContentLoaded', initDashboard);
+        document.addEventListener('DOMContentLoaded', async function() {
+            await initDashboard();
+            setInitialUpdateTime();
+        });
     </script>
 </body>
 </html>

@@ -9,7 +9,8 @@ import sqlite3
 import uuid
 import asyncio
 import logging
-from datetime import datetime
+import time
+from datetime import datetime, timedelta
 from flask import jsonify
 
 import sys
@@ -80,46 +81,42 @@ class APIRoutes:
                 with sqlite3.connect(tracker.db_path) as conn:
                     cursor = conn.cursor()
                     
-                    # 今日の最新予想データを race_details テーブルから取得
+                    # 今日の最新予想データを predictions テーブルから取得
                     cursor.execute("""
-                        SELECT venue_id, race_number, prediction_data
-                        FROM race_details 
+                        SELECT venue_id, race_number, predicted_win, predicted_place, confidence
+                        FROM predictions 
                         WHERE race_date = ?
                     """, (race_date,))
                     
                     for row in cursor.fetchall():
-                        venue_id, race_number, prediction_data_json = row
+                        venue_id, race_number, predicted_win, predicted_place, confidence = row
                         key = f"{venue_id}_{race_number}"
                         try:
-                            prediction_json = json.loads(prediction_data_json) if prediction_data_json else {}
-                            predicted_win = prediction_json.get('recommended_win') or prediction_json.get('predicted_win', 1)
-                            predicted_place = prediction_json.get('recommended_place') or prediction_json.get('predicted_place', [1, 2, 3])
-                            confidence = prediction_json.get('confidence', 0.5)
+                            # predicted_placeがカンマ区切り文字列の場合はリストに変換
+                            if isinstance(predicted_place, str):
+                                predicted_place = [int(x) for x in predicted_place.split(',')]
+                            elif not isinstance(predicted_place, list):
+                                predicted_place = [predicted_win] if predicted_win else [1, 2, 3]
                         except:
-                            predicted_win = 1
-                            predicted_place = [1, 2, 3]
-                            confidence = 0.5
+                            predicted_place = [predicted_win] if predicted_win else [1, 2, 3]
                         
                         prediction_data[key] = {
-                            'predicted_win': predicted_win,
+                            'predicted_win': predicted_win or 1,
                             'predicted_place': predicted_place,
-                            'confidence': confidence
+                            'confidence': confidence or 0.5
                         }
                     
                     # 今日の結果データを取得
                     cursor.execute("""
-                        SELECT venue_id, race_number, winning_boat, place_results
+                        SELECT venue_id, race_number, winning_boat, second_boat, third_boat
                         FROM race_results 
                         WHERE race_date = ?
                     """, (race_date,))
                     
                     for row in cursor.fetchall():
-                        venue_id, race_number, winning_boat, place_results_json = row
+                        venue_id, race_number, winning_boat, second_boat, third_boat = row
                         key = f"{venue_id}_{race_number}"
-                        try:
-                            place_results = json.loads(place_results_json) if place_results_json else []
-                        except:
-                            place_results = []
+                        place_results = [boat for boat in [winning_boat, second_boat, third_boat] if boat is not None]
                         
                         result_data[key] = {
                             'winning_boat': winning_boat,
@@ -143,27 +140,41 @@ class APIRoutes:
                 is_finished = self._check_race_finished(start_time, current_time)
                 race_time = self._parse_race_time(start_time, current_time)
                 
-                # 予想データと結果データを追加
-                prediction = prediction_data.get(race_key)
-                result = result_data.get(race_key) if is_finished and race_time else None
+                # 予想データと結果データを追加（改善版）
+                old_prediction = prediction_data.get(race_key)
+                # 結果データは終了判定に関係なく常に確認（キャッシュされた結果を活用）
+                result = result_data.get(race_key)
                 
-                # 詳細予想システムの結果を優先使用
-                if race_key in enhanced_predictions:
-                    raw_prediction = enhanced_predictions[race_key]
-                    logger.info(f"並列計算予想使用 {venue_name} {race_number}R: 推奨={raw_prediction.get('recommended_win')}, 複勝={raw_prediction.get('recommended_place')}")
-                    prediction = normalize_prediction_data(raw_prediction)
-                elif prediction:
-                    logger.debug(f"データベース予想使用 {venue_name} {race_number}R")
-                    prediction = normalize_prediction_data(prediction)
-                else:
-                    # フォールバック予想
-                    raw_prediction = {
-                        'predicted_win': 1,
-                        'predicted_place': [1, 2, 3],
-                        'confidence': 0.5
-                    }
-                    logger.info(f"デフォルト予想使用 {venue_name} {race_number}R")
-                    prediction = normalize_prediction_data(raw_prediction)
+                # デバッグログ
+                if result:
+                    logger.info(f"結果データ確認: {venue_name} {race_number}R -> 勝利={result['winning_boat']}, 複勝={result.get('place_results', [])}")
+                elif is_finished:
+                    logger.warning(f"結果データ未取得: {venue_name} {race_number}R (終了済み {start_time})")
+                
+                # 常に実際のレーサーデータを使用した予想システムを使用
+                prediction = None
+                try:
+                    tracker = self.AccuracyTracker()
+                    prediction_result = tracker._generate_real_prediction(venue_id, race_number, race_date=race_date)
+                    
+                    if prediction_result:
+                        logger.info(f"実際レーサーデータ予想成功 {venue_name} {race_number}R: 推奨={prediction_result.get('recommended_win')}")
+                        prediction = normalize_prediction_data(prediction_result)
+                    else:
+                        logger.warning(f"実際レーサーデータ予想失敗 {venue_name} {race_number}R")
+                        # フォールバック：古い予想データを使用
+                        if old_prediction:
+                            logger.debug(f"フォールバック: データベース予想使用 {venue_name} {race_number}R")
+                            prediction = normalize_prediction_data(old_prediction)
+                        
+                except Exception as e:
+                    logger.error(f"実際レーサーデータ予想システムエラー {venue_name} {race_number}R: {e}")
+                    # フォールバック：古い予想データを使用
+                    if old_prediction:
+                        logger.debug(f"エラーフォールバック: データベース予想使用 {venue_name} {race_number}R")
+                        prediction = normalize_prediction_data(old_prediction)
+                    else:
+                        prediction = None
                 
                 race_info = {
                     'venue_id': venue_id,
@@ -313,13 +324,23 @@ class APIRoutes:
         logger.info("レース一覧キャッシュをクリアしました")
     
     def _check_race_finished(self, start_time, current_time):
-        """レース終了判定"""
+        """レース終了判定（改善版）"""
         try:
             if start_time == '未定':
                 return False
             race_time = datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S')
-            return current_time > race_time + timedelta(minutes=10)
-        except:
+            # より厳密な終了判定：発走時刻から15分経過で終了とみなす
+            finish_time = race_time + timedelta(minutes=15)
+            is_finished = current_time > finish_time
+            elapsed = (current_time - race_time).total_seconds() / 60
+            
+            # 詳細デバッグ情報（特に終了判定がおかしいレースを特定）
+            if abs(elapsed) < 60:  # 1時間以内のレースはログ出力
+                logger.info(f"レース終了判定詳細: {start_time} | 現在時刻: {current_time.strftime('%H:%M:%S')} | 経過: {elapsed:.1f}分 | 判定: {'終了' if is_finished else '未終了'}")
+            
+            return is_finished
+        except Exception as e:
+            logger.warning(f"レース終了判定エラー {start_time}: {e}")
             return False
     
     def _parse_race_time(self, start_time, current_time):
@@ -333,18 +354,34 @@ class APIRoutes:
             return None
     
     def _race_sort_key(self, race):
-        """レースソート用キー"""
+        """レースソート用キー（改善版）"""
         try:
             start_time = race['start_time']
+            current_time = datetime.now()
+            venue_id = race.get('venue_id', 999)
+            
             if start_time == '未定':
-                return (1, 9999, race['venue_id'])  # 終了したものの後ろ
+                return (3, 9999, venue_id)  # 未定レースは最後
             
             race_time = datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S')
-            current_time = datetime.now()
+            time_minutes = race_time.hour * 60 + race_time.minute
             
-            if race['is_finished']:
-                return (1, race_time.hour * 60 + race_time.minute, race['venue_id'])
+            # レース終了状態に基づくソート
+            if race.get('is_finished', False):
+                # 終了レースは最下位（数値が大きいほど下）
+                elapsed_minutes = (current_time - race_time).total_seconds() / 60
+                if elapsed_minutes > 120:  # 2時間以上経過は最下位
+                    return (4, time_minutes, venue_id)
+                else:  # 2時間以内の終了レースは下位
+                    return (2, time_minutes, venue_id)
             else:
-                return (0, race_time.hour * 60 + race_time.minute, race['venue_id'])
-        except:
-            return (2, 9999, race.get('venue_id', 999))
+                # 未終了レース（進行中・未来）は最上位（数値が小さいほど上）
+                if current_time < race_time:
+                    # 未来のレース（まだ開始前）
+                    return (0, time_minutes, venue_id)
+                else:
+                    # 進行中のレース（開始済み・未終了）
+                    return (1, time_minutes, venue_id)
+        except Exception as e:
+            logger.warning(f"ソートキー計算エラー: {e}")
+            return (5, 9999, race.get('venue_id', 999))

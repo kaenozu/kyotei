@@ -8,7 +8,7 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from prediction_accuracy_validator import accuracy_validator
+from src.core.accuracy_tracker import AccuracyTracker
 import logging
 
 # ログ設定
