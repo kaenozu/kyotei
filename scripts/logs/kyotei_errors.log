@@ -1,0 +1,5 @@
+2025-08-31 14:48:00 - core.component_initializer - ERROR - ルートハンドラー初期化エラー: No module named 'core.dummy_data_generator'
+2025-08-31 14:48:00 - __main__ - ERROR - コンポーネント初期化エラー: No module named 'core.dummy_data_generator'
+2025-08-31 14:48:00 - __main__ - ERROR - コンポーネント初期化エラー: No module named 'core.dummy_data_generator'
+2025-08-31 14:48:52 - core.component_initializer - WARNING - 投資ダッシュボードルートの初期化失敗: No module named 'routes.investment'
+2025-08-31 14:48:52 - core.component_initializer - WARNING - AI総合ダッシュボードルートの初期化失敗: No module named 'core.enhanced_webui_routes'
