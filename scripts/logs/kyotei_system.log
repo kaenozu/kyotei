@@ -1,0 +1,24 @@
+2025-08-31 14:48:00 - core.component_initializer - INFO - [OK] APIフェッチャー初期化完了
+2025-08-31 14:48:00 - core.component_initializer - INFO - 実際のAccuracyTrackerを使用
+2025-08-31 14:48:00 - core.component_initializer - INFO - 実際の予想アルゴリズムを使用
+2025-08-31 14:48:00 - core.component_initializer - ERROR - ルートハンドラー初期化エラー: No module named 'core.dummy_data_generator'
+2025-08-31 14:48:00 - __main__ - ERROR - コンポーネント初期化エラー: No module named 'core.dummy_data_generator'
+2025-08-31 14:48:00 - __main__ - ERROR - コンポーネント初期化エラー: No module named 'core.dummy_data_generator'
+2025-08-31 14:48:52 - core.component_initializer - INFO - [OK] APIフェッチャー初期化完了
+2025-08-31 14:48:52 - core.component_initializer - INFO - 実際のAccuracyTrackerを使用
+2025-08-31 14:48:52 - core.component_initializer - INFO - 実際の予想アルゴリズムを使用
+2025-08-31 14:48:52 - core.component_initializer - WARNING - 投資ダッシュボードルートの初期化失敗: No module named 'routes.investment'
+2025-08-31 14:48:52 - core.component_initializer - WARNING - AI総合ダッシュボードルートの初期化失敗: No module named 'core.enhanced_webui_routes'
+2025-08-31 14:48:52 - core.component_initializer - INFO - [OK] ルートハンドラー初期化完了
+2025-08-31 14:48:52 - scheduler_service - INFO - 統合スケジューラー初期化完了
+2025-08-31 14:48:52 - core.component_initializer - INFO - [OK] スケジューラー初期化完了
+2025-08-31 14:48:52 - __main__ - INFO - [OK] 全コンポーネント初期化完了
+2025-08-31 14:48:52 - __main__ - INFO - [OK] 全コンポーネント初期化完了
+2025-08-31 14:48:52 - __main__ - INFO - アプリケーション作成完了
+2025-08-31 14:48:52 - __main__ - INFO - アプリケーション作成完了
+2025-08-31 14:48:52 - scheduler_service - INFO - 統合スケジューラー開始: AM6時データ取得, 毎時結果更新, PM11時レポート更新
+2025-08-31 14:48:52 - werkzeug - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.0.94:5000
+2025-08-31 14:48:52 - werkzeug - INFO - [33mPress CTRL+C to quit[0m
