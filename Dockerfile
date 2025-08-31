@@ -1,5 +1,5 @@
 # 競艇予想システム Docker設定
-FROM python:3.11-slim
+FROM python:3.13-slim
 
 # 作業ディレクトリ設定
 WORKDIR /app
