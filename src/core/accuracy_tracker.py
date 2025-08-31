@@ -14,11 +14,18 @@ from typing import Dict, List, Optional, Any
 logger = logging.getLogger(__name__)
 
 
+import os
+
 class AccuracyTracker:
     """的中率追跡クラス（新スキーマ対応）"""
 
     def __init__(self):
-        self.db_path = 'cache/comprehensive_kyotei.db'
+        # このファイルの絶対パスを取得
+        current_file_path = os.path.abspath(__file__)
+        # src/core -> src -> (project_root)
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_file_path)))
+        # プロジェクトルートからの絶対パスでdb_pathを構築
+        self.db_path = os.path.join(project_root, 'cache', 'comprehensive_kyotei.db')
         self.venue_mapping = {
             1: "桐生", 2: "戸田", 3: "江戸川", 4: "平和島", 5: "多摩川", 6: "浜名湖",
             7: "蒲郡", 8: "常滑", 9: "津", 10: "三国", 11: "びわこ", 12: "住之江",
