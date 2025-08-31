@@ -331,7 +331,10 @@ class RealAPITracker:
             # 予想結果を生成
             predicted_win = boat_scores[0]['boat_number']
             predicted_place = [boat['boat_number'] for boat in boat_scores[:3]]
-            confidence = min(0.95, max(0.05, boat_scores[0]['score'] / 100.0))
+            # スコアを100で割るのではなく、正規化して0.05-0.95の範囲に収める
+            max_score = max(boat['score'] for boat in boat_scores) if boat_scores else 100.0
+            normalized_score = boat_scores[0]['score'] / max_score if max_score > 0 else 0.5
+            confidence = min(0.95, max(0.05, normalized_score * 0.9 + 0.05))
             
             logger.info(f"予想完了: 単勝={predicted_win}号艇, 複勝={predicted_place}, 信頼度={confidence:.2%}")
             
@@ -343,7 +346,7 @@ class RealAPITracker:
                     'boat_number': boat_score['boat_number'],
                     'name': boat_data.get('racer_name', f"{boat_score['boat_number']}号艇"),
                     'racer_name': boat_data.get('racer_name', f"{boat_score['boat_number']}号艇"),
-                    'prediction_score': boat_score['score'] / 100.0,  # 0-1の範囲に正規化
+                    'prediction_score': min(1.0, boat_score['score'] / max_score),  # 0-1の範囲に正規化
                     'win_rate': boat_data.get('racer_national_top_1_percent', 0),
                     'local_win_rate': boat_data.get('racer_local_top_1_percent', 0),
                     'place_rate': boat_data.get('racer_national_top_3_percent', 0),
