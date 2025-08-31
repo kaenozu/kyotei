@@ -51,7 +51,7 @@ class SimpleOpenAPIFetcher:
             else:
                 # 日付から年を動的に取得してURLを生成
                 date_obj = datetime.strptime(date, '%Y-%m-%d')
-                url = f"{self.programs_base_url}/{date_obj.year}/{date_obj.strftime('%Y%m%d')}.json"
+                url = f"{self.programs_base_url}/{date_obj.strftime('%Y%m%d')}.json"
             
             response = requests.get(url, timeout=10)
             if response.status_code == 200:
@@ -113,7 +113,7 @@ class SimpleOpenAPIFetcher:
             else:
                 # 日付から年を動的に取得してURLを生成
                 date_obj = datetime.strptime(date, '%Y-%m-%d')
-                url = f"{self.results_base_url}/{date_obj.year}/{date_obj.strftime('%Y%m%d')}.json"
+                url = f"{self.results_base_url}/{date_obj.strftime('%Y%m%d')}.json"
             
             response = requests.get(url, timeout=10)
             if response.status_code == 200:
