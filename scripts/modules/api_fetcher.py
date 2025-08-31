@@ -49,9 +49,9 @@ class SimpleOpenAPIFetcher:
             if date == today:
                 url = f"{self.programs_base_url}/today.json"
             else:
-                # 日付形式をYYYYMMDD.jsonに変換
-                date_formatted = date.replace('-', '')
-                url = f"{self.programs_base_url}/2025/{date_formatted}.json"
+                # 日付から年を動的に取得してURLを生成
+                date_obj = datetime.strptime(date, '%Y-%m-%d')
+                url = f"{self.programs_base_url}/{date_obj.year}/{date_obj.strftime('%Y%m%d')}.json"
             
             response = requests.get(url, timeout=10)
             if response.status_code == 200:
@@ -111,9 +111,9 @@ class SimpleOpenAPIFetcher:
             if date == today:
                 url = f"{self.results_base_url}/today.json"
             else:
-                # 日付形式をYYYYMMDD.jsonに変換
-                date_formatted = date.replace('-', '')
-                url = f"{self.results_base_url}/2025/{date_formatted}.json"
+                # 日付から年を動的に取得してURLを生成
+                date_obj = datetime.strptime(date, '%Y-%m-%d')
+                url = f"{self.results_base_url}/{date_obj.year}/{date_obj.strftime('%Y%m%d')}.json"
             
             response = requests.get(url, timeout=10)
             if response.status_code == 200:
