@@ -417,7 +417,6 @@ race_list_cache = {'data': None, 'timestamp': 0}
 
 def get_cached_race_list():
     """キャッシュされたレース一覧を取得"""
-    global race_list_cache
     current_time = time.time()
     cache_age_minutes = (current_time - race_list_cache['timestamp']) / 60
     
@@ -427,12 +426,10 @@ def get_cached_race_list():
 
 def save_race_list_to_cache(race_list_data):
     """レース一覧をキャッシュに保存"""
-    global race_list_cache
     race_list_cache['data'] = race_list_data
     race_list_cache['timestamp'] = time.time()
 
 def clear_race_list_cache():
     """レース一覧キャッシュをクリア"""
-    global race_list_cache
     race_list_cache['data'] = None
     race_list_cache['timestamp'] = 0
