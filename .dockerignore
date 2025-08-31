@@ -1,8 +1,13 @@
-# Git関連
+# Git
 .git
 .gitignore
+.gitattributes
 
-# Python関連
+# CI/CD
+.github
+.gitlab-ci.yml
+
+# Python
 __pycache__
 *.pyc
 *.pyo
@@ -16,37 +21,72 @@ pip-delete-this-directory.txt
 .tox
 .coverage
 .coverage.*
-.pytest_cache
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
 .mypy_cache
+.pytest_cache
+.hypothesis
 
-# IDE関連
+# Documentation
+README.md
+README_*.md
+*.md
+docs/
+.readthedocs.yml
+
+# IDE
 .vscode
 .idea
 *.swp
 *.swo
 *~
 
-# OS関連
+# OS
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
 
-# プロジェクト固有
-cache/*.json
-*.log
-htmlcov/
-dist/
-build/
-*.egg-info
-
-# テスト関連
-test_*.py
-*_test.py
-tests/
-
-# ドキュメント関連
-*.md
-!README_OPENAPI.md
-
-# 一時ファイル
+# Temporary files
 *.tmp
 *.temp
+
+# Development files  
+tests/
+test_*.py
+*_test.py
+conftest.py
+pytest.ini
+
+# Archive and backup
+archive/
+archived_files/
+refactor_backup/
+backup/
+*.backup
+*.bak
+
+# Coverage reports
+htmlcov/
+.coverage
+coverage.xml
+*.coverage
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Keep cache and logs structure but exclude content
+logs/*.log
+cache/*.cache
+cache/*.json
+cache/*.db
+!cache/.gitkeep
+!logs/.gitkeep
