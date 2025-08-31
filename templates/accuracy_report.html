@@ -3,7 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>的中率レポート - BoatraceOpenAPI</title>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>的中率レポート - 競艇予想システム [CACHE-CLEARED-{{ timestamp }}]</title>
     <style>
         :root {
             --bg-color: #f5f5f5;
@@ -197,7 +200,19 @@
             text-align: center;
         }
         
-        .result-◯, .result-hit {
+        .result-details {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+        
+        .result-details .result-badge {
+            min-width: 40px;
+            font-size: 0.75em;
+            padding: 2px 6px;
+        }
+        
+        .result-◯, .result-○, .result-hit {
             background-color: var(--success-color);
             color: white;
         }
@@ -611,19 +626,31 @@
                         {% endif %}
                     </td>
                     <td>
-                        <span class="result-badge result-{{ race.hit_status }}">
-                            {% if race.hit_status == 'hit' %}
-                            ✓ 的中
-                            {% elif race.hit_status == 'place_hit' %}
-                            ✓ 複勝的中
-                            {% elif race.hit_status == 'miss' %}
-                            ✗ 外れ
-                            {% elif race.hit_status == 'pending' %}
-                            ⏳ 結果待ち
+                        {% if race.has_result %}
+                        <div class="result-details">
+                            {% if race.is_win_hit %}
+                            <span class="result-badge result-○" title="単勝的中">単勝○</span>
                             {% else %}
-                            ⏳ 待機
+                            <span class="result-badge result-×" title="単勝外れ">単勝×</span>
                             {% endif %}
+                            
+                            {% if race.is_place_hit %}
+                            <span class="result-badge result-○" title="複勝的中" style="margin-left: 4px;">複勝○</span>
+                            {% else %}
+                            <span class="result-badge result-×" title="複勝外れ" style="margin-left: 4px;">複勝×</span>
+                            {% endif %}
+                            
+                            {% if race.is_trifecta_hit %}
+                            <span class="result-badge result-○" title="三連単的中" style="margin-left: 4px;">三連単○</span>
+                            {% elif race.predicted_trifecta %}
+                            <span class="result-badge result-×" title="三連単外れ" style="margin-left: 4px;">三連単×</span>
+                            {% endif %}
+                        </div>
+                        {% else %}
+                        <span class="result-badge result-待">
+                            ⏳ 結果待ち
                         </span>
+                        {% endif %}
                     </td>
                     <td>
                         <div style="display: flex; align-items: center; gap: 5px;">
@@ -1101,8 +1128,26 @@
             if (document.getElementById('race-table')) {
                 // ページング機能を無効化し、全行を表示
                 const allRows = Array.from(document.querySelectorAll('#race-table tbody tr'));
-                allRows.forEach(row => row.style.display = '');
-                console.log(`全${allRows.length}行を表示しました`);
+                allRows.forEach(row => {
+                    row.style.display = 'table-row';
+                    row.style.visibility = 'visible';
+                });
+                console.log(`全${allRows.length}行を強制表示しました`);
+                
+                // テーブルも確実に表示
+                const table = document.getElementById('race-table');
+                if (table) {
+                    table.style.display = 'table';
+                    table.style.visibility = 'visible';
+                }
+                
+                // ページング機能を完全に無効化
+                return; // 以下のinitializePagination()を実行しない
+            }
+            
+            // 従来のページング初期化（テーブルがない場合のみ）
+            if (document.getElementById('race-table')) {
+                initializePagination();
             }
             
             // 日付ピッカーの初期値をURLに合わせる

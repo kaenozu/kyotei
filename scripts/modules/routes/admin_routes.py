@@ -33,9 +33,12 @@ class AdminRoutes:
         """管理関連ルートを登録"""
         self.app.add_url_rule('/accuracy', 'accuracy_report', self.accuracy_report)
         self.app.add_url_rule('/accuracy/<date>', 'accuracy_report_date', self.accuracy_report)
+        self.app.add_url_rule('/accuracy/all', 'accuracy_report_all_explicit', self.accuracy_report_all)
         self.app.add_url_rule('/api/update-results', 'api_update_results', self.api_update_results, methods=['POST', 'GET'])
         self.app.add_url_rule('/api/update-results/<date>', 'api_update_results_date', self.api_update_results_for_date, methods=['POST', 'GET'])
         self.app.add_url_rule('/api/clear-test-results', 'api_clear_test_results', self.api_clear_test_results, methods=['POST', 'GET'])
+        self.app.add_url_rule('/historical', 'historical_report', self.historical_report)
+        self.app.add_url_rule('/api/historical/<start_date>/<end_date>', 'api_historical_data', self.api_historical_data)
     
     def accuracy_report(self, date=None):
         """的中率レポート（日付別）"""
@@ -44,12 +47,15 @@ class AdminRoutes:
                 date = datetime.now().strftime('%Y-%m-%d')
             
             tracker = self.AccuracyTracker()
+            logger.info(f"AccuracyTrackerインスタンス作成完了: {type(tracker).__name__}")
+            logger.info(f"AccuracyTracker DB path: {getattr(tracker, 'db_path', 'N/A')}")
             
             # 指定日の的中率を計算
-            accuracy_data = tracker.calculate_accuracy(date)
+            accuracy_summary = tracker.calculate_accuracy(date)
+            logger.info(f"calculate_accuracy結果: summary={accuracy_summary}")
             
-            # AccuracyTrackerの結果を直接使用（重複処理を避ける）
-            race_list = accuracy_data.get('races', [])
+            # 指定日のレース一覧を取得
+            race_list = tracker.get_all_races_by_date(date)
             logger.info(f"デバッグ: race_list長さ={len(race_list)}, 最初のレース={race_list[0] if race_list else 'なし'}")
             
             # 完全なデータ（発走時間+予想+結果）が存在する前日・翌日を検索
@@ -58,18 +64,20 @@ class AdminRoutes:
             next_date = self._find_next_data_date(current_date, tracker)
             today = datetime.now().strftime('%Y-%m-%d')
             
+            import time
             return render_template('accuracy_report.html',
                                  date=date,
                                  current_date=date,
                                  prev_date=prev_date,
                                  next_date=next_date,
                                  is_today=(date == today),
+                                 timestamp=int(time.time()),
                                  accuracy_data={
-                                     'summary': accuracy_data.get('summary'),
+                                     'summary': accuracy_summary,
                                      'races': race_list,
                                      'venues': VENUE_MAPPING
                                  },
-                                 summary=accuracy_data.get('summary'),
+                                 summary=accuracy_summary,
                                  races=race_list,
                                  total_races=len(race_list),
                                  venues=VENUE_MAPPING)
@@ -81,6 +89,56 @@ class AdminRoutes:
                                  error=f"レポート生成エラー: {str(e)}",
                                  date=error_date,
                                  current_date=error_date,
+                                 prev_date=None,
+                                 next_date=None,
+                                 is_today=False,
+                                 accuracy_data={
+                                     'summary': {},
+                                     'races': [],
+                                     'venues': VENUE_MAPPING
+                                 },
+                                 venues=VENUE_MAPPING)
+    
+    def accuracy_report_all(self):
+        """的中率レポート（全期間）"""
+        try:
+            tracker = self.AccuracyTracker()
+            logger.info(f"AccuracyTrackerインスタンス作成完了: {type(tracker).__name__}")
+            logger.info(f"AccuracyTracker DB path: {getattr(tracker, 'db_path', 'N/A')}")
+            
+            # 全期間の的中率を計算（target_date=Noneで全データ取得）
+            accuracy_summary = tracker.calculate_accuracy(target_date=None)
+            logger.info(f"calculate_accuracy結果: summary={accuracy_summary}")
+            
+            # 今日のレース一覧を取得（全期間なら今日のデータを表示）
+            today = datetime.now().strftime('%Y-%m-%d')
+            race_list = tracker.get_all_races_by_date(today)
+            logger.info(f"デバッグ: race_list長さ={len(race_list)}, 最初のレース={race_list[0] if race_list else 'なし'}")
+            
+            import time
+            return render_template('accuracy_report.html',
+                                 date='全期間',
+                                 current_date='全期間',
+                                 prev_date=None,
+                                 next_date=None,
+                                 is_today=False,
+                                 timestamp=int(time.time()),
+                                 accuracy_data={
+                                     'summary': accuracy_summary,
+                                     'races': race_list,
+                                     'venues': VENUE_MAPPING
+                                 },
+                                 summary=accuracy_summary,
+                                 races=race_list,
+                                 total_races=len(race_list),
+                                 venues=VENUE_MAPPING)
+        
+        except Exception as e:
+            logger.error(f"全期間的中率レポートエラー: {e}")
+            return render_template('accuracy_report.html',
+                                 error=f"レポート生成エラー: {str(e)}",
+                                 date='全期間',
+                                 current_date='全期間',
                                  prev_date=None,
                                  next_date=None,
                                  is_today=False,
@@ -176,20 +234,21 @@ class AdminRoutes:
                             if place and place <= 3:
                                 place_results[place-1] = boat_num
                         
-                        if None not in place_results:
+                        # 1位が決まっていれば結果データとして保存
+                        if place_results[0] is not None:
                             winning_boat = place_results[0]
                             venue_name = VENUE_MAPPING.get(venue_id, '不明')
                             
-                            # 三連単結果作成
-                            trifecta_result = f"{place_results[0]}-{place_results[1]}-{place_results[2]}"
-                            
-                            # データベース更新
+                            # 三連単結果作成（不明な順位はNullで保存）
+                            second_boat = place_results[1]
+                            third_boat = place_results[2]
+                            trifecta_result = f"{place_results[0]}-{place_results[1] or 'N'}-{place_results[2] or 'N'}"
                             cursor.execute('''
                                 INSERT OR REPLACE INTO race_results
-                                (race_date, venue_id, venue_name, race_number, winning_boat, place_results, trifecta_result, result_data)
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                                (race_date, venue_id, venue_name, race_number, winning_boat, second_boat, third_boat, trifecta_result, raw_result_data, fetched_at)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                             ''', (datetime.now().strftime('%Y-%m-%d'), venue_id, venue_name, race_number,
-                                  winning_boat, json.dumps(place_results), trifecta_result, '{"auto_updated": true}'))
+                                  winning_boat, second_boat, third_boat, trifecta_result, '{"auto_updated": true}', datetime.now().isoformat()))
                             
                             updated_count += 1
                     
@@ -313,3 +372,62 @@ class AdminRoutes:
                 return result[0] if result else None
         except:
             return None
+    
+    def historical_report(self):
+        """履歴データレポート（期間選択機能付き）"""
+        try:
+            # 履歴データ分析クラスをインポート
+            sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'core'))
+            from historical_data_analyzer import HistoricalDataAnalyzer
+            
+            analyzer = HistoricalDataAnalyzer()
+            
+            # 期間選択用データを取得
+            selector_data = analyzer.generate_period_selector_data()
+            
+            # デフォルト期間（全期間）でレポート生成
+            available_range = selector_data.get('available_range', {})
+            start_date = available_range.get('start_date', '2025-07-15')
+            end_date = available_range.get('end_date', '2025-08-31')
+            
+            accuracy_report = analyzer.get_accuracy_report_by_date_range(start_date, end_date)
+            venue_analysis = analyzer.get_venue_performance_analysis(start_date, end_date)
+            
+            return render_template('historical_report.html',
+                                 selector_data=selector_data,
+                                 accuracy_report=accuracy_report,
+                                 venue_analysis=venue_analysis,
+                                 default_period="全期間",
+                                 current_time=datetime.now().strftime('%Y-%m-%d %H:%M'))
+                                 
+        except Exception as e:
+            logger.error(f"履歴データレポートエラー: {e}")
+            return f"<h2>履歴データエラー</h2><p>{str(e)}</p>"
+    
+    def api_historical_data(self, start_date, end_date):
+        """期間別履歴データAPI"""
+        try:
+            # 履歴データ分析クラスをインポート
+            sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'core'))
+            from historical_data_analyzer import HistoricalDataAnalyzer
+            
+            analyzer = HistoricalDataAnalyzer()
+            
+            # 期間別データを取得
+            accuracy_report = analyzer.get_accuracy_report_by_date_range(start_date, end_date)
+            venue_analysis = analyzer.get_venue_performance_analysis(start_date, end_date)
+            
+            return jsonify({
+                'success': True,
+                'period': f"{start_date} ～ {end_date}",
+                'accuracy_report': accuracy_report,
+                'venue_analysis': venue_analysis,
+                'generated_at': datetime.now().isoformat()
+            })
+            
+        except Exception as e:
+            logger.error(f"履歴データAPIエラー: {e}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            })

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BoatraceOpenAPI - 今日のレース</title>
+    <title>競艇予想システム - 今日のレース</title>
     <style>
         :root {
             --bg-color: #f5f5f5;
@@ -414,11 +414,15 @@
     <div class="container">
         <div class="header">
             <button class="theme-toggle" onclick="toggleTheme()">🌙 ダーク</button>
-            <h1>🏁 BoatraceOpenAPI</h1>
+            <h1>🏁 競艇予想システム</h1>
             <p>{{ current_time }} 現在のレース情報</p>
-            <div style="margin-top: 15px; display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
+            <div style="margin-top: 15px; display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; align-items: center;">
                 <a href="/accuracy" style="background: linear-gradient(135deg, #28a745, #20c997); color: white; padding: 10px 20px; text-decoration: none; border-radius: 20px; font-weight: bold;">📊 的中率レポート</a>
                 <a href="/dashboard" style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 10px 20px; text-decoration: none; border-radius: 20px; font-weight: bold; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3); transition: all 0.3s ease;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 20px rgba(102, 126, 234, 0.4)'" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 15px rgba(102, 126, 234, 0.3)'">🚀 AI統合ダッシュボード</a>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <label for="date-select" style="color: #666; font-size: 0.9em;">📅 日付:</label>
+                    <input type="date" id="date-select" value="{% if selected_date %}{{ selected_date }}{% else %}{{ today_date }}{% endif %}" style="padding: 5px 10px; border: 1px solid #ddd; border-radius: 10px; font-size: 0.9em;" onchange="changeDate(this.value)">
+                </div>
             </div>
         </div>
 
@@ -503,8 +507,13 @@
             // 古いキャッシュデータの自動クリア（当日以外のデータは削除）
             checkAndClearOldCache();
             
-            // 非同期データロードを開始（改善版）
-            loadRaceDataWithCacheCheck();
+            // キャッシュを強制クリアして新規データロード
+            sessionStorage.removeItem(RACE_DATA_CACHE_KEY);
+            sessionStorage.removeItem(CACHE_EXPIRY_KEY);
+            console.log('キャッシュを強制クリアしました');
+            
+            // 予測データ込みの統合APIを使用したデータロード
+            loadRaceDataFromFullAPI();
         });
         
         // ブラウザの戻るボタンでページに戻った場合もキャッシュを活用
@@ -644,8 +653,8 @@
         async function loadRaceDataWithCacheCheck() {
             const cachedData = getCachedRaceData();
             
-            if (cachedData) {
-                // キャッシュがある場合：即座に表示してから背景で更新
+            if (cachedData && cachedData.races && cachedData.races.length > 0) {
+                // 有効なキャッシュがある場合：即座に表示してから背景で更新
                 console.log('キャッシュからデータを表示し、背景で更新します');
                 displayRaceData(cachedData);
                 
@@ -663,7 +672,14 @@
                     }
                 }
             } else {
-                // キャッシュがない場合：フル読み込み
+                // キャッシュがないか空の場合：フル読み込み
+                if (cachedData && cachedData.races && cachedData.races.length === 0) {
+                    console.log('空のキャッシュを検出、キャッシュクリアして新規データ読み込み');
+                    sessionStorage.removeItem(RACE_DATA_CACHE_KEY);
+                    sessionStorage.removeItem(CACHE_EXPIRY_KEY);
+                } else {
+                    console.log('キャッシュなし、新規データ読み込み');
+                }
                 await loadRaceData();
             }
         }
@@ -676,19 +692,21 @@
             const stats = document.querySelector('.stats');
             
             try {
-                // Step 0: キャッシュチェック
-                const cachedData = getCachedRaceData();
-                if (cachedData) {
-                    console.log('キャッシュからデータ表示');
-                    displayRaceData(cachedData);
-                    return;
-                }
+                // デバッグ: API呼び出し開始
+                console.log('新規APIデータ取得を開始します');
 
                 // Step 1: 基本データ取得
                 updateLoadingProgress('データ取得', 1, 4, 'レースデータを取得中...');
                 
-                const response = await fetch('/api/races');
+                // 選択された日付を取得
+                const selectedDate = getSelectedDate();
+                const url = selectedDate ? `/api/races/basic?date=${selectedDate}` : '/api/races/basic';
+                
+                console.log('API呼び出しURL:', url);
+                const response = await fetch(url);
+                console.log('API応答ステータス:', response.status);
                 const data = await response.json();
+                console.log('API取得データ:', data);
                 
                 // デバッグログ追加
                 console.log('[DEBUG] API response:', data);
@@ -741,6 +759,64 @@
             } catch (error) {
                 console.error('データ読み込みエラー:', error);
                 showError(error.message);
+            }
+        }
+
+        // 予測データ込み統合API使用のデータ読み込み
+        async function loadRaceDataFromFullAPI() {
+            const loadingIndicator = document.getElementById('loading-indicator');
+            const raceGrid = document.getElementById('race-grid');
+            const errorSection = document.getElementById('error-section');
+            
+            try {
+                // ローディング表示
+                loadingIndicator.style.display = 'block';
+                raceGrid.style.display = 'none';
+                errorSection.style.display = 'none';
+                
+                updateLoadingProgress('統合データ取得', 1, 2, '予測データ込みレース情報を取得中...');
+                console.log('予測データ込み統合APIを呼び出します: /api/races');
+                
+                // 統合APIを呼び出し（予測データも含む）
+                const response = await fetch('/api/races');
+                const data = await response.json();
+                
+                console.log('[DEBUG] Full API response:', data);
+                console.log('[DEBUG] Total races:', data.races ? data.races.length : 0);
+                console.log('[DEBUG] Sample race:', data.races && data.races[0]);
+                
+                if (!data.success || !data.races) {
+                    throw new Error(data.error || 'レースデータの取得に失敗しました');
+                }
+                
+                updateLoadingProgress('表示準備', 2, 2, 'レース表示を準備中...');
+                await new Promise(resolve => setTimeout(resolve, 200));
+                
+                // レースデータを表示
+                displayRaces(data.races);
+                
+                // 統計情報更新
+                updateStats(data.races);
+                
+                // キャッシュに保存
+                setCachedRaceData({
+                    races: data.races,
+                    timestamp: Date.now(),
+                    stats: {
+                        total: data.races.length,
+                        finished: data.races.filter(r => r.is_finished).length
+                    }
+                });
+                
+                // 完了
+                loadingIndicator.style.display = 'none';
+                raceGrid.style.display = 'grid';
+                
+                console.log(`統合APIから${data.races.length}件のレースを表示（予測データ含む）`);
+                
+            } catch (error) {
+                console.error('統合API読み込みエラー:', error);
+                showError(`レースデータの読み込みに失敗しました: ${error.message}`);
             }
         }
 
@@ -818,6 +894,10 @@
                 confidencePercent = Math.round(race.confidence * 100);
             }
             
+            // 予測・結果データの表示状態を決定
+            const hasPredictionOrResult = race.prediction || race.result;
+            const predictionDisplay = hasPredictionOrResult ? 'block' : 'none';
+            
             div.innerHTML = `
                 <div class="race-venue">
                     ${race.venue_name}
@@ -832,10 +912,17 @@
                     <span class="confidence-value ${getConfidenceClass(confidencePercent)}">${confidencePercent}%</span>
                 </div>
                 ${race.race_title ? `<div class="race-title">${race.race_title}</div>` : ''}
-                <div id="prediction-${race.race_id}" class="prediction-section" style="display: none;">
+                <div id="prediction-${race.race_id}" class="prediction-section" style="display: ${predictionDisplay};">
                     <!-- 予想データは後で追加 -->
                 </div>
             `;
+            
+            // 予測・結果データがある場合は即座に表示
+            if (hasPredictionOrResult) {
+                setTimeout(() => {
+                    displayPredictionForRace(race.race_id, race.prediction, race.result);
+                }, 0);
+            }
             
             return div;
         }
@@ -1092,6 +1179,39 @@
                     this.style.background = '';
                 });
             });
+        }
+
+        // 日付選択機能
+        function getSelectedDate() {
+            const dateInput = document.getElementById('date-select');
+            // タイムゾーンを考慮した今日の日付を取得
+            const now = new Date();
+            const today = now.getFullYear() + '-' + 
+                         String(now.getMonth() + 1).padStart(2, '0') + '-' + 
+                         String(now.getDate()).padStart(2, '0');
+            const selectedValue = dateInput ? dateInput.value : null;
+            
+            console.log('今日の日付 (修正版):', today);
+            console.log('選択された日付:', selectedValue);
+            console.log('パラメータ使用判定:', selectedValue !== today);
+            
+            // 今日の日付の場合はnull、過去の日付の場合はその値を返す
+            return selectedValue && selectedValue !== today ? selectedValue : null;
+        }
+        
+        function changeDate(selectedDate) {
+            // タイムゾーンを考慮した今日の日付を取得
+            const now = new Date();
+            const today = now.getFullYear() + '-' + 
+                         String(now.getMonth() + 1).padStart(2, '0') + '-' + 
+                         String(now.getDate()).padStart(2, '0');
+            if (selectedDate === today) {
+                // 今日の日付が選択された場合、パラメータなしでリロード
+                window.location.href = '/';
+            } else {
+                // 過去の日付が選択された場合、日付パラメータ付きでリロード
+                window.location.href = `/?date=${selectedDate}`;
+            }
         }
 
         // 自動リロード（5分間隔）
