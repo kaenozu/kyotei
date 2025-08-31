@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 競艇予想システム - リファクタリング版 v4.2 🚀
 
-このプロジェクトは、BoatraceOpenAPIを使用した競艇予想システムです。大規模リファクタリングにより最適化されたアーキテクチャで、単勝・複勝・三連単の的中率を追跡し、Web UIとAPIを提供します。
+このプロジェクトは、公開APIを使用した競艇予想システムです。大規模リファクタリングにより最適化されたアーキテクチャで、単勝・複勝・三連単の的中率を追跡し、Web UIとAPIを提供します。
 
 ### 📈 リファクタリング成果 (2025-08-26)
 - **ファイル削除**: 200個以上の不要ファイル削除（技術的負債解消）
@@ -73,7 +73,7 @@ pip install requests flask schedule aiohttp numpy
 - **予想アルゴリズム**: 統計ベースの予想システム
   - 全国勝率(18%)、当地勝率(12%)、モーター性能(12%)、ボート性能(8%)、スタートタイミング(10%)、その他(40%)
 - **的中率追跡**: SQLiteデータベースによる予想・結果の永続化
-- **API統合**: BoatraceOpenAPI v2との統合（programs、previews、results）
+- **API統合**: 競艇公式データAPI v2との統合（programs、previews、results）
 
 ### データ管理
 - **cache/**: SQLiteデータベースとJSONキャッシュ（クリーンアップ済み）
@@ -141,7 +141,7 @@ CREATE TABLE results (
 - **段階的移行**: `scripts/web_app.py`から`scripts/modules/`へ段階的移行
 
 ### APIレート制限
-BoatraceOpenAPIへのアクセス時は適切な間隔（1秒以上）を設けること
+公開APIへのアクセス時は適切な間隔（1秒以上）を設けること
 
 ### エラーハンドリング
 - ネットワークエラー、APIエラー、データベースエラーに対する適切な処理

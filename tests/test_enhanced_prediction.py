@@ -4,7 +4,7 @@
 """
 
 import json
-from enhanced_prediction_system import EnhancedPredictionSystem
+from enhanced_predictor import EnhancedPredictor
 from datetime import datetime
 import random
 
@@ -81,7 +81,7 @@ def main():
     print("=" * 50)
     
     # システム初期化
-    enhanced_system = EnhancedPredictionSystem()
+    enhanced_system = EnhancedPredictor()
     
     # トレーニングデータ読み込み
     print("トレーニングデータ読み込み中...")

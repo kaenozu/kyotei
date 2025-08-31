@@ -7,7 +7,7 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from ensemble_predictor import ensemble_predictor
+from ensemble_predictor import EnsemblePredictor
 import json
 
 def test_ensemble_prediction():
@@ -92,7 +92,8 @@ def test_ensemble_prediction():
     
     try:
         # アンサンブル予想実行
-        result = ensemble_predictor.calculate_ensemble_prediction(test_race_data)
+        ensemble = EnsemblePredictor()
+        result = ensemble.predict_race(test_race_data)
         
         print(f"\n[OK] アンサンブル予想成功!")
         print(f"信頼度: {result['confidence']:.3f}")

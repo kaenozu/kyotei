@@ -4,7 +4,7 @@
 """
 
 import logging
-from race_result_fetcher import race_result_fetcher
+from scripts.modules.api_fetcher import SimpleOpenAPIFetcher
 
 # ログ設定
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')

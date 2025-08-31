@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BoatraceOpenAPI - レース予想</title>
+    <title>競艇予想システム - レース予想</title>
     <style>
         :root {
             --bg-color: #f5f5f5;
@@ -102,6 +102,31 @@
             background: linear-gradient(135deg, #ffe6e6 0%, #ffffff 100%);
             box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3);
         }
+        .racer-card.winner {
+            border-color: #28a745;
+            background: linear-gradient(135deg, #d4edda 0%, #ffffff 100%);
+            box-shadow: 0 4px 15px rgba(40, 167, 69, 0.4);
+            position: relative;
+        }
+        .racer-card.winner::before {
+            content: '🏆 優勝';
+            position: absolute;
+            top: -15px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: white;
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 0.8em;
+            font-weight: bold;
+            z-index: 10;
+        }
+        .racer-card.place-winner {
+            border-color: #17a2b8;
+            background: linear-gradient(135deg, #d1ecf1 0%, #ffffff 100%);
+            box-shadow: 0 4px 15px rgba(23, 162, 184, 0.3);
+        }
         .racer-number {
             position: absolute;
             top: -10px;
@@ -123,6 +148,13 @@
         }
         .racer-number.top-prediction {
             background: #dc3545;
+        }
+        .racer-number.winner {
+            background: #28a745;
+            box-shadow: 0 0 15px rgba(40, 167, 69, 0.6);
+        }
+        .racer-number.place-winner {
+            background: #17a2b8;
         }
         .racer-name {
             font-size: 1.3em;
@@ -344,16 +376,81 @@
             {% endif %}
         </div>
 
+        {% if race_results and race_results.has_results %}
+        <!-- レース結果セクション -->
+        <div class="race-results" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white; padding: 25px; border-radius: 10px; margin-bottom: 30px;">
+            <div style="text-align: center; font-size: 1.4em; font-weight: bold; margin-bottom: 20px;">
+                🏁 レース結果
+            </div>
+            
+            <div class="results-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 20px;">
+                <div style="text-align: center; background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px;">
+                    <div style="font-size: 1em; margin-bottom: 10px; opacity: 0.9;">🥇 優勝</div>
+                    <div style="font-size: 1.8em; font-weight: bold;">{{ race_results.winning_boat }}号艇</div>
+                </div>
+                
+                {% if race_results.place_results and race_results.place_results|length >= 3 %}
+                <div style="text-align: center; background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px;">
+                    <div style="font-size: 1em; margin-bottom: 10px; opacity: 0.9;">🏆 着順</div>
+                    <div style="font-size: 1.3em; font-weight: bold;">
+                        {{ race_results.place_results[0] }}-{{ race_results.place_results[1] }}-{{ race_results.place_results[2] }}
+                    </div>
+                </div>
+                {% endif %}
+                
+                {% if race_results.trifecta_result %}
+                <div style="text-align: center; background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px;">
+                    <div style="font-size: 1em; margin-bottom: 10px; opacity: 0.9;">🎯 三連単</div>
+                    <div style="font-size: 1.3em; font-weight: bold;">{{ race_results.trifecta_result }}</div>
+                </div>
+                {% endif %}
+            </div>
+            
+            <!-- 予想との比較 -->
+            {% if recommended_win and race_results.winning_boat %}
+            <div class="prediction-accuracy" style="text-align: center; background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px;">
+                <div style="font-size: 1.1em; margin-bottom: 10px;">🤖 AI予想結果</div>
+                {% if recommended_win == race_results.winning_boat %}
+                <div style="font-size: 1.2em; color: #ffeb3b; font-weight: bold;">
+                    ✅ 単勝的中！（{{ recommended_win }}号艇）
+                </div>
+                {% else %}
+                <div style="font-size: 1.1em; opacity: 0.9;">
+                    ❌ 予想: {{ recommended_win }}号艇 → 結果: {{ race_results.winning_boat }}号艇
+                </div>
+                {% endif %}
+                
+                {% if recommended_place and race_results.place_results %}
+                {% set place_hit = namespace(value=false) %}
+                {% for boat in recommended_place[:3] %}
+                    {% if boat in race_results.place_results[:3] %}
+                        {% set place_hit.value = true %}
+                    {% endif %}
+                {% endfor %}
+                
+                <div style="margin-top: 10px;">
+                    {% if place_hit.value %}
+                    <span style="color: #ffeb3b;">✅ 複勝的中</span>
+                    {% else %}
+                    <span style="opacity: 0.8;">❌ 複勝外れ</span>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+
         {% if racers %}
         <div class="racers-grid">
             {% for racer in racers %}
             {% set predicted_rank = loop.index %}
-            <div class="racer-card {% if racer.number == recommended_win %}top-prediction{% endif %} {% if racer.number in recommended_place[:2] %}recommended{% endif %}">
+            <div class="racer-card {% if race_results and race_results.winning_boat == racer.boat_number %}winner{% elif race_results and race_results.place_results and racer.boat_number in race_results.place_results[:3] %}place-winner{% elif racer.boat_number == recommended_win|int %}top-prediction{% elif racer.boat_number in recommended_place[:2] %}recommended{% endif %}">
                 <div class="predicted-rank" style="position: absolute; top: -10px; right: -10px; background: linear-gradient(135deg, #ff6b35, #f7941e); color: white; width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 0.9em;">
                     {{ predicted_rank }}
                 </div>
-                <div class="racer-number {% if racer.number == recommended_win %}top-prediction{% endif %} {% if racer.number in recommended_place[:2] %}recommended{% endif %}">
-                    {{ racer.number }}
+                <div class="racer-number {% if race_results and race_results.winning_boat == racer.boat_number %}winner{% elif race_results and race_results.place_results and racer.boat_number in race_results.place_results[:3] %}place-winner{% elif racer.boat_number == recommended_win|int %}top-prediction{% elif racer.boat_number in recommended_place[:2] %}recommended{% endif %}">
+                    {{ racer.boat_number }}
                 </div>
                 <div class="racer-name">{{ racer.name }}</div>
                 
@@ -376,6 +473,7 @@
                     </div>
                 </div>
                 
+                {% if racer.analysis %}
                 <div class="analysis-details" style="margin-top: 10px; font-size: 0.85em; color: #666;">
                     <div><strong>AI分析:</strong></div>
                     <div>基本実力: {{ ((racer.analysis.base_strength | default(0)) * 100) | round(1) }}%</div>
@@ -383,14 +481,16 @@
                     <div>艇番有利: {{ ((racer.analysis.lane_advantage | default(0)) * 100) | round(1) }}%</div>
                     <div>ST補正: ×{{ (racer.analysis.st_factor | default(1.0)) | round(2) }}</div>
                 </div>
+                {% endif %}
                 
                 <div class="prediction-bar">
-                    <div class="prediction-fill" style="width: {{ ((racer.prediction | default(0)) * 100) | round(1) }}%; 
+                    <div class="prediction-fill" style="width: {{ ((racer.prediction_score | default(racer.prediction | default(0))) * 100) | round(1) }}%; 
                          background: linear-gradient(90deg, 
-                         {% if racer.prediction > 0.3 %}#dc3545{% elif racer.prediction > 0.2 %}#ffc107{% else %}#28a745{% endif %} 0%, 
-                         {% if racer.prediction > 0.3 %}#c82333{% elif racer.prediction > 0.2 %}#e0a800{% else %}#1e7e34{% endif %} 100%);">
+                         {% set score = racer.prediction_score | default(racer.prediction | default(0)) %}
+                         {% if score > 0.3 %}#dc3545{% elif score > 0.2 %}#ffc107{% else %}#28a745{% endif %} 0%, 
+                         {% if score > 0.3 %}#c82333{% elif score > 0.2 %}#e0a800{% else %}#1e7e34{% endif %} 100%);">
                     </div>
-                    <div class="prediction-text">{{ ((racer.prediction | default(0)) * 100) | round(1) }}%</div>
+                    <div class="prediction-text">{{ ((racer.prediction_score | default(racer.prediction | default(0))) * 100) | round(1) }}%</div>
                 </div>
             </div>
             {% endfor %}
@@ -414,7 +514,7 @@
                 <div class="rec-item">
                     <div class="rec-label">本命</div>
                     <div class="rec-value">
-                        {% for racer in racers if racer.number == recommended_win %}
+                        {% for racer in racers if racer.boat_number == recommended_win|int %}
                         {{ racer.name }}
                         {% endfor %}
                     </div>
@@ -438,12 +538,12 @@
             <!-- リスク別推奨 -->
             <div class="rec-title" style="font-size: 1.2em; margin-bottom: 15px;">📊 リスク別推奨</div>
             <div class="rec-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px;">
-                {% for key, risk in betting_recommendations.risk_based.items() %}
+                {% for risk in betting_recommendations.risk_based %}
                 <div class="risk-item" style="text-align: center; background: rgba(255,255,255,0.1); padding: 12px; border-radius: 6px;">
-                    <div style="font-size: 1.5em; margin-bottom: 5px;">{{ risk.icon }}</div>
-                    <div style="font-weight: bold; margin-bottom: 3px;">{{ risk.label }}</div>
-                    <div style="font-size: 0.9em; opacity: 0.9;">{{ risk.bet_type }}</div>
-                    <div style="font-size: 0.8em; margin-top: 3px;">{{ risk.target }}</div>
+                    <div style="font-size: 1.5em; margin-bottom: 5px;">🎯</div>
+                    <div style="font-weight: bold; margin-bottom: 3px;">{{ risk.type }}</div>
+                    <div style="font-size: 0.9em; opacity: 0.9;">{{ risk.boats|join('-') }}号艇</div>
+                    <div style="font-size: 0.8em; margin-top: 3px;">信頼度: {{ ((risk.confidence | default(0.5)) * 100) | round(1) }}%</div>
                 </div>
                 {% endfor %}
             </div>
@@ -464,7 +564,7 @@
                 {% for bet_type, amount in betting_recommendations.budget_allocation.items() %}
                 <div class="budget-item" style="text-align: center; background: rgba(255,255,255,0.1); padding: 12px; border-radius: 6px;">
                     <div style="font-weight: bold; margin-bottom: 5px;">{{ bet_type }}</div>
-                    <div style="font-size: 1.2em; font-weight: bold;">{{ "{:,}".format(amount) }}円</div>
+                    <div style="font-size: 1.2em; font-weight: bold;">{{ amount|string }}円</div>
                     <div style="font-size: 0.8em; opacity: 0.8;">{{ ((amount / 10000) * 100) | int }}%</div>
                 </div>
                 {% endfor %}
@@ -478,12 +578,33 @@
     <script>
         // 公式ページを開く
         function openOfficialPage(venueId, raceNumber) {
-            // 今日の日付を取得（YYYYMMDD形式）
-            const today = new Date();
-            const year = today.getFullYear();
-            const month = String(today.getMonth() + 1).padStart(2, '0');
-            const day = String(today.getDate()).padStart(2, '0');
-            const dateStr = year + month + day;
+            // レースの実際の日付を取得
+            const urlPath = window.location.pathname;
+            const pathParts = urlPath.split('/');
+            const raceId = pathParts[pathParts.length - 1]; // 最後の部分がrace_id
+            
+            let dateStr;
+            if (raceId && raceId.includes('_')) {
+                const raceIdParts = raceId.split('_');
+                if (raceIdParts.length === 3 && raceIdParts[2].match(/^\d{4}-\d{2}-\d{2}$/)) {
+                    // race_idから日付を抽出 (YYYY-MM-DD -> YYYYMMDD)
+                    dateStr = raceIdParts[2].replace(/-/g, '');
+                } else {
+                    // 今日の日付を使用
+                    const today = new Date();
+                    const year = today.getFullYear();
+                    const month = String(today.getMonth() + 1).padStart(2, '0');
+                    const day = String(today.getDate()).padStart(2, '0');
+                    dateStr = year + month + day;
+                }
+            } else {
+                // フォールバック: 今日の日付を使用
+                const today = new Date();
+                const year = today.getFullYear();
+                const month = String(today.getMonth() + 1).padStart(2, '0');
+                const day = String(today.getDate()).padStart(2, '0');
+                dateStr = year + month + day;
+            }
             
             // 競艇場IDを2桁にフォーマット
             const jcd = String(venueId).padStart(2, '0');

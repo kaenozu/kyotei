@@ -21,6 +21,15 @@ class RealAPITracker:
         self.api_base_url = 'https://boatraceopenapi.github.io'
         self.venue_mapping = self._get_venue_mapping()  # 属性として追加
         self._ensure_database()
+    
+    def _get_venue_mapping(self) -> Dict[int, str]:
+        """会場IDと会場名のマッピング"""
+        return {
+            1: "桐生", 2: "戸田", 3: "江戸川", 4: "平和島", 5: "多摩川", 6: "浜名湖",
+            7: "蒲郡", 8: "常滑", 9: "津", 10: "三国", 11: "びわこ", 12: "住之江",
+            13: "尼崎", 14: "鳴門", 15: "丸亀", 16: "児島", 17: "宮島", 18: "徳山",
+            19: "下関", 20: "若松", 21: "芦屋", 22: "福岡", 23: "唐津", 24: "大村"
+        }
         
     def _ensure_database(self):
         """データベースの初期化"""
@@ -144,151 +153,135 @@ class RealAPITracker:
             }
     
     def calculate_accuracy(self, date: str = None) -> Dict:
-        """指定日の的中率を計算"""
+        """指定日の的中率を計算（実際のデータベースから）"""
         if date is None:
             date = datetime.now().strftime('%Y-%m-%d')
         
-        logger.info(f"実際のAPI的中率計算: {date}")
+        logger.info(f"的中率計算（DB使用）: {date}")
         
         try:
-            # 今日のレースデータを取得
-            if date == datetime.now().strftime('%Y-%m-%d'):
-                races_data = self.get_today_races()
-            else:
-                # 過去の日付のデータ取得
-                races_data = self._get_historical_races(date)
-            
-            if not races_data:
-                logger.warning(f"レースデータが取得できませんでした: {date}")
-                return self._empty_accuracy_data(date)
-            
-            # レースデータの処理
-            races = []
-            total_predictions = len(races_data)
-            completed_races = 0
-            win_hits = 0
-            place_hits = 0
-            trifecta_hits = 0
-            
-            # 会場マッピング
-            venue_mapping = self._get_venue_mapping()
-            
-            for race in races_data:
-                venue_id = race.get('race_stadium_number')
-                race_number = race.get('race_number')
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
                 
-                if not venue_id or not race_number:
-                    continue
+                # 指定日の予想データを取得
+                cursor.execute('''
+                    SELECT p.id, p.race_date, p.venue_id, p.venue_name, p.race_number,
+                           p.predicted_win, p.predicted_place, p.confidence, p.prediction_data,
+                           r.actual_results, r.is_hit, r.is_place_hit, r.is_trifecta_hit
+                    FROM predictions p
+                    LEFT JOIN results r ON p.venue_id = r.venue_id 
+                                       AND p.race_number = r.race_number 
+                                       AND p.race_date = r.date_str
+                    WHERE p.race_date = ?
+                    ORDER BY p.venue_id, p.race_number
+                ''', (date,))
                 
-                venue_name = venue_mapping.get(venue_id, f'会場{venue_id}')
+                prediction_data = cursor.fetchall()
                 
-                # レース結果を取得
-                race_result = self.get_race_results(venue_id, race_number, date)
-                has_result = race_result.get('status') == 'found'
+                if not prediction_data:
+                    logger.warning(f"指定日の予想データが見つかりません: {date}")
+                    return self._empty_accuracy_data(date)
                 
-                # 過去のレースの場合、結果データがあれば表示する（予想データは必須ではない）
-                prediction = None
-                if date == datetime.now().strftime('%Y-%m-%d'):
-                    # 今日のレースのみ予想データを生成
-                    prediction = self._generate_real_prediction(race)
+                # データの処理
+                races = []
+                total_predictions = len(prediction_data)
+                completed_races = 0
+                win_hits = 0
+                place_hits = 0
+                trifecta_hits = 0
                 
-                # 予想データがない場合のデフォルト値
-                if not prediction:
+                for row in prediction_data:
+                    (pred_id, race_date, venue_id, venue_name, race_number,
+                     predicted_win, predicted_place_str, confidence, prediction_data_json,
+                     actual_results, is_hit, is_place_hit, is_trifecta_hit) = row
+                    
+                    # 予想データをパース
+                    try:
+                        predicted_place = json.loads(predicted_place_str) if predicted_place_str else []
+                    except:
+                        predicted_place = []
+                    
+                    # 結果があるかチェック
+                    has_result = actual_results is not None
                     if has_result:
-                        # 結果があるレースは履歴として表示（予想なしでも表示）
-                        prediction = {
-                            'predicted_win': None,
-                            'predicted_place': [],
-                            'confidence': 0.0,
-                            'is_historical': True
-                        }
-                    else:
-                        # 結果がない場合はスキップ
-                        continue
-                
-                # 的中判定
-                is_win_hit = None
-                is_place_hit = None
-                is_trifecta_hit = None
-                hit_status = '待'
-                
-                if has_result:
-                    completed_races += 1
-                    winning_boat = race_result.get('winning_boat')
-                    place_results = race_result.get('place_results', [])
-                    
-                    # 予想データがある場合のみ的中判定を行う
-                    predicted_win = prediction.get('predicted_win')
-                    predicted_place = prediction.get('predicted_place', [])
-                    
-                    if predicted_win is not None:
-                        is_win_hit = predicted_win == winning_boat
-                        is_place_hit = winning_boat in predicted_place
-                        is_trifecta_hit = (len(place_results) >= 3 and len(predicted_place) >= 3 and
-                                         place_results[:3] == predicted_place[:3])
-                        
-                        if is_win_hit:
+                        completed_races += 1
+                        if is_hit:
                             win_hits += 1
+                        if is_place_hit:
+                            place_hits += 1
+                        if is_trifecta_hit:
+                            trifecta_hits += 1
+                    
+                    # ヒット状況の表示
+                    if has_result:
+                        if is_hit:
                             hit_status = '◯'
                         elif is_place_hit:
-                            place_hits += 1
-                            hit_status = '△'
+                            hit_status = '△'  
                         else:
                             hit_status = '×'
                     else:
-                        # 予想データがない場合は的中判定なし
-                        hit_status = 'データ不足' if has_result else '待'
+                        hit_status = '待'
                     
-                    if is_trifecta_hit:
-                        trifecta_hits += 1
+                    # 実際の結果をパース
+                    actual_results_list = []
+                    if actual_results:
+                        try:
+                            actual_results_list = json.loads(actual_results) if isinstance(actual_results, str) else actual_results
+                        except:
+                            actual_results_list = []
                 
-                # レース情報の構築
-                race_info = {
-                    'venue_id': venue_id,
-                    'venue_name': venue_name,
-                    'race_number': race_number,
-                    'race_date': date,
-                    'start_time': race.get('race_closed_at', '未定'),
-                    'race_title': race.get('race_title', f'第{race_number}レース'),
-                    'confidence': prediction.get('confidence', 0.5),
-                    'prediction': prediction,
-                    'result': race_result if has_result else None,
-                    'is_win_hit': is_win_hit,
-                    'is_place_hit': is_place_hit,
-                    'is_trifecta_hit': is_trifecta_hit,
-                    'has_result': has_result,
-                    'status': 'completed' if has_result else 'pending',
-                    'predicted_win': prediction.get('predicted_win'),
-                    'predicted_place': prediction.get('predicted_place'),
-                    'winning_boat': race_result.get('winning_boat') if has_result else None,
-                    'place_results': race_result.get('place_results') if has_result else None,
-                    'hit_status': hit_status
+                    # レース情報の構築
+                    race_info = {
+                        'venue_id': venue_id,
+                        'venue_name': venue_name,
+                        'race_number': race_number,
+                        'race_date': race_date,
+                        'start_time': '未定',  # 時間データが不足している場合
+                        'race_title': f'第{race_number}レース',
+                        'confidence': confidence or 0.5,
+                        'prediction': {
+                            'predicted_win': predicted_win,
+                            'predicted_place': predicted_place,
+                            'confidence': confidence or 0.5
+                        },
+                        'result': actual_results_list if has_result else None,
+                        'is_win_hit': is_hit,
+                        'is_place_hit': is_place_hit,  
+                        'is_trifecta_hit': is_trifecta_hit,
+                        'has_result': has_result,
+                        'status': 'completed' if has_result else 'pending',
+                        'predicted_win': predicted_win,
+                        'predicted_place': predicted_place,
+                        'winning_boat': actual_results_list[0] if actual_results_list else None,
+                        'place_results': actual_results_list[:3] if actual_results_list else None,
+                        'hit_status': hit_status
+                    }
+                    races.append(race_info)
+                
+                # 統計計算
+                win_accuracy = (win_hits / completed_races * 100) if completed_races > 0 else 0
+                place_accuracy = (place_hits / completed_races * 100) if completed_races > 0 else 0
+                trifecta_accuracy = (trifecta_hits / completed_races * 100) if completed_races > 0 else 0
+                
+                logger.info(f"的中率計算完了（DB使用）: {date} - 予想{total_predictions}件（完了{completed_races}件）, 単勝:{win_accuracy:.1f}%, 複勝:{place_accuracy:.1f}%")
+                
+                return {
+                    'summary': {
+                        'total_predictions': total_predictions,
+                        'completed_races': completed_races,
+                        'pending_races': total_predictions - completed_races,
+                        'win_hits': win_hits,
+                        'win_accuracy': round(win_accuracy, 1),
+                        'place_hits': place_hits,
+                        'place_accuracy': round(place_accuracy, 1),
+                        'trifecta_hits': trifecta_hits,
+                        'trifecta_accuracy': round(trifecta_accuracy, 1),
+                        'completion_rate': round((completed_races / total_predictions * 100), 1) if total_predictions > 0 else 0
+                    },
+                    'races': races,
+                    'venues': self.venue_mapping
                 }
-                races.append(race_info)
-            
-            # 統計計算
-            win_accuracy = (win_hits / completed_races * 100) if completed_races > 0 else 0
-            place_accuracy = (place_hits / completed_races * 100) if completed_races > 0 else 0
-            trifecta_accuracy = (trifecta_hits / completed_races * 100) if completed_races > 0 else 0
-            
-            logger.info(f"実際のAPI的中率計算完了: {date} - 予想{total_predictions}件（完了{completed_races}件）, 単勝:{win_accuracy:.1f}%, 複勝:{place_accuracy:.1f}%")
-            
-            return {
-                'summary': {
-                    'total_predictions': total_predictions,
-                    'completed_races': completed_races,
-                    'pending_races': total_predictions - completed_races,
-                    'win_hits': win_hits,
-                    'win_accuracy': round(win_accuracy, 1),
-                    'place_hits': place_hits,
-                    'place_accuracy': round(place_accuracy, 1),
-                    'trifecta_hits': trifecta_hits,
-                    'trifecta_accuracy': round(trifecta_accuracy, 1),
-                    'completion_rate': round((completed_races / total_predictions * 100), 1) if total_predictions > 0 else 0
-                },
-                'races': races,
-                'venues': venue_mapping
-            }
             
         except Exception as e:
             logger.error(f"的中率計算エラー: {e}")
@@ -852,3 +845,49 @@ class RealAPITracker:
                 'status': 'error',
                 'error': str(e)
             }
+    
+    def get_all_races_by_date(self, date_str: str) -> List[Dict]:
+        """指定日付のすべてのレースを取得"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT DISTINCT rd.venue_id, rd.race_number, rd.race_title, 
+                           rd.start_time, vm.venue_name
+                    FROM race_details rd
+                    LEFT JOIN (
+                        SELECT 1 as venue_id, '桐生' as venue_name UNION ALL
+                        SELECT 2, '戸田' UNION ALL SELECT 3, '江戸川' UNION ALL
+                        SELECT 4, '平和島' UNION ALL SELECT 5, '多摩川' UNION ALL
+                        SELECT 6, '浜名湖' UNION ALL SELECT 7, '蒲郡' UNION ALL
+                        SELECT 8, '常滑' UNION ALL SELECT 9, '津' UNION ALL
+                        SELECT 10, '三国' UNION ALL SELECT 11, 'びわこ' UNION ALL
+                        SELECT 12, '住之江' UNION ALL SELECT 13, '尼崎' UNION ALL
+                        SELECT 14, '鳴門' UNION ALL SELECT 15, '丸亀' UNION ALL
+                        SELECT 16, '児島' UNION ALL SELECT 17, '宮島' UNION ALL
+                        SELECT 18, '徳山' UNION ALL SELECT 19, '下関' UNION ALL
+                        SELECT 20, '若松' UNION ALL SELECT 21, '芦屋' UNION ALL
+                        SELECT 22, '福岡' UNION ALL SELECT 23, '唐津' UNION ALL
+                        SELECT 24, '大村'
+                    ) vm ON rd.venue_id = vm.venue_id
+                    WHERE rd.race_date = ?
+                    ORDER BY rd.venue_id, rd.race_number
+                """, (date_str,))
+                
+                races = []
+                for row in cursor.fetchall():
+                    race = {
+                        'venue_id': row[0],
+                        'race_number': row[1], 
+                        'race_title': row[2] or '',
+                        'start_time': row[3],
+                        'venue_name': row[4] or f'会場{row[0]}'
+                    }
+                    races.append(race)
+                    
+                logger.info(f"指定日付 {date_str} のレース {len(races)} 件を取得")
+                return races
+                
+        except Exception as e:
+            logger.error(f"日付別レース取得エラー: {e}")
+            return []

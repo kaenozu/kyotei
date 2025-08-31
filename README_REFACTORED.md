@@ -2,7 +2,7 @@
 
 ## 概要
 
-BoatraceOpenAPIを活用した高精度競艇予想システムのリファクタリング版。
+公開APIを活用した高精度競艇予想システムのリファクタリング版。
 機械学習とデータ分析による予想的中率33.1%（単勝）、72.9%（複勝）、3.8%（三連単）を実現。
 
 ## ✨ リファクタリング改善点
@@ -73,7 +73,7 @@ python scripts/web_app.py
 ## 🔧 主要機能
 
 ### 統合予想エンジン
-- BoatraceOpenAPI連携
+- 競艇公式API連携
 - ML予想統合（RandomForest + XGBoost + LightGBM）
 - 信頼度スコア算出
 - 三連単対応
@@ -180,9 +180,9 @@ grep ERROR logs/system.log
 - scikit-learn, XGBoost, LightGBM
 
 ### API連携
-- BoatraceOpenAPI Programs v2
-- BoatraceOpenAPI Previews v2  
-- BoatraceOpenAPI Results v2
+- 競艇公式API Programs v2
+- 競艇公式API Previews v2  
+- 競艇公式API Results v2
 
 ## 🤝 サポート
 
