@@ -73,7 +73,7 @@ python scripts/web_app.py
 ## 🔧 主要機能
 
 ### 統合予想エンジン
-- BoatraceOpenAPI連携
+- 競艇公式API連携
 - ML予想統合（RandomForest + XGBoost + LightGBM）
 - 信頼度スコア算出
 - 三連単対応
@@ -180,9 +180,9 @@ grep ERROR logs/system.log
 - scikit-learn, XGBoost, LightGBM
 
 ### API連携
-- BoatraceOpenAPI Programs v2
-- BoatraceOpenAPI Previews v2  
-- BoatraceOpenAPI Results v2
+- 競艇公式API Programs v2
+- 競艇公式API Previews v2  
+- 競艇公式API Results v2
 
 ## 🤝 サポート
 
